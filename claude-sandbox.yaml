@@ -222,11 +222,11 @@ provision:
       fi
 
       if [ -f "$SECRETS/claude_oauth_token.txt" ]; then
-        MARKER="# claudevm: Claude Code token (do not edit by hand)"
-        if ! grep -qF "$MARKER" ~/.bashrc 2>/dev/null; then
-          {
-            echo "$MARKER"
-            echo "export CLAUDE_CODE_OAUTH_TOKEN=\"\$(cat $SECRETS/claude_oauth_token.txt)\""
-          } >> ~/.bashrc
-        fi
+        # /etc/environment (via PAM) rather than ~/.bashrc: VS Code's
+        # Remote-SSH extension host is spawned as a background process over
+        # SSH, not an interactive login shell, so it may never source
+        # ~/.bashrc and would fail to see the token there.
+        TOKEN="$(cat "$SECRETS/claude_oauth_token.txt")"
+        sudo sed -i '/^CLAUDE_CODE_OAUTH_TOKEN=/d' /etc/environment
+        echo "CLAUDE_CODE_OAUTH_TOKEN=\"$TOKEN\"" | sudo tee -a /etc/environment > /dev/null
       fi

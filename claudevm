@@ -114,6 +114,17 @@ cmd_up() {
     limactl start --name="$name" --tty=false \
       --cpus="$CPUS" --memory="$MEMORY" --disk="$DISK" \
       "$rendered"
+
+    # Lima's SSH connection to the guest is opened to run the "system"/"user"
+    # provisioning scripts, and later `claudevm ssh`/`limactl shell` calls
+    # reuse that same connection -- so the very first session after a fresh
+    # create can predate provisioning writing things like
+    # CLAUDE_CODE_OAUTH_TOKEN to /etc/environment. A restart forces a new
+    # connection and picks them up.
+    echo
+    echo "Note: env vars written by provisioning (e.g. CLAUDE_CODE_OAUTH_TOKEN)"
+    echo "may be missing from your very first 'claudevm ssh $name' or VS Code"
+    echo "session. If so, run 'claudevm down $name && claudevm up $name' once."
   fi
 
   echo
@@ -174,6 +185,22 @@ cmd_ls() {
 cmd_secrets() {
   local name="${1:?instance name required}"
   require_instance "$name"
+
+  # Lima fixes an instance's mounts at creation time, so a VM created before
+  # secrets existed can never pick up the secrets mount by restarting --
+  # only by being recreated. Refuse up front rather than generating secrets
+  # the running VM won't actually see.
+  if limactl list -q 2>/dev/null | grep -qx "$name"; then
+    local project_dir
+    project_dir="$(cat "$INSTANCES_DIR/$name/project-dir")"
+    echo "'$name' already exists. Lima fixes a VM's mounts at creation time, so" >&2
+    echo "adding secrets now wouldn't be picked up by a restart -- recreate it first:" >&2
+    echo "  claudevm rm $name" >&2
+    echo "  claudevm new $name $project_dir" >&2
+    echo "then run 'claudevm secrets $name' again before 'claudevm up $name'." >&2
+    exit 1
+  fi
+
   local secrets_dir="$INSTANCES_DIR/$name/secrets"
   mkdir -p "$secrets_dir"
   chmod 700 "$secrets_dir"
@@ -208,7 +235,7 @@ cmd_secrets() {
     echo "Claude Code token already saved for '$name'."
   fi
   echo
-  echo "Restart the VM to pick these up: claudevm down $name && claudevm up $name"
+  echo "Next: claudevm up $name"
 }
 
 main() {

@@ -91,3 +91,4 @@ README.md                   This file
 
 - The firewall filters by resolved IP, refreshed every 5 minutes — solid against casual misuse, but not a guarantee against traffic smuggled over an already-allowed domain.
 - First `claudevm up` downloads the Ubuntu cloud image, so it's slower the first time on a given Mac; later VMs reuse the cache.
+- On a freshly created VM, environment variables written by provisioning (like `CLAUDE_CODE_OAUTH_TOKEN`, via `/etc/environment`) may not show up in your very first `claudevm ssh` or VS Code session. Lima reuses the same SSH connection it used to run provisioning for later shell sessions, and that connection predates provisioning's writes. Run `claudevm down <name> && claudevm up <name>` once to force a fresh connection.
