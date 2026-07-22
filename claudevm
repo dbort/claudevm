@@ -75,37 +75,46 @@ cmd_up() {
   local name="${1:?instance name required}"
   require_instance "$name"
   local cfg_dir="$INSTANCES_DIR/$name"
-  local project_dir
-  project_dir="$(cat "$cfg_dir/project-dir")"
 
-  # Render a per-instance config: the shared template plus an explicit
-  # `mounts:` list, so the VM only ever sees the project dir and its own
-  # config/secrets -- never Lima's built-in default mounts (which include
-  # the host's home directory). Built via plain file concatenation, not a
-  # CLI `--mount` flag, since that flag's accepted syntax isn't consistent
-  # across Lima versions and silently falling back to Lima's defaults is
-  # exactly what exposed the host home directory before this fix.
-  local rendered="$cfg_dir/.lima.yaml"
-  cp "$TEMPLATE" "$rendered"
-  {
-    echo
-    echo "mounts:"
-    echo "  - location: \"$project_dir\""
-    echo "    mountPoint: \"/workspace\""
-    echo "    writable: true"
-    echo "  - location: \"$cfg_dir\""
-    echo "    mountPoint: \"/mnt/claudevm-config\""
-    echo "    writable: false"
-    if [ -d "$cfg_dir/secrets" ]; then
-      echo "  - location: \"$cfg_dir/secrets\""
-      echo "    mountPoint: \"/mnt/claudevm-secrets\""
+  if limactl list -q 2>/dev/null | grep -qx "$name"; then
+    # Instance already exists: its config (mounts, resources, etc.) was
+    # fixed at creation time. Just resume it -- passing a template file or
+    # --cpus/--memory/--disk here makes limactl think we're (re)creating
+    # the instance, which fails with "instance already exists".
+    limactl start "$name"
+  else
+    local project_dir
+    project_dir="$(cat "$cfg_dir/project-dir")"
+
+    # Render a per-instance config: the shared template plus an explicit
+    # `mounts:` list, so the VM only ever sees the project dir and its own
+    # config/secrets -- never Lima's built-in default mounts (which include
+    # the host's home directory). Built via plain file concatenation, not a
+    # CLI `--mount` flag, since that flag's accepted syntax isn't consistent
+    # across Lima versions and silently falling back to Lima's defaults is
+    # exactly what exposed the host home directory before this fix.
+    local rendered="$cfg_dir/.lima.yaml"
+    cp "$TEMPLATE" "$rendered"
+    {
+      echo
+      echo "mounts:"
+      echo "  - location: \"$project_dir\""
+      echo "    mountPoint: \"/workspace\""
+      echo "    writable: true"
+      echo "  - location: \"$cfg_dir\""
+      echo "    mountPoint: \"/mnt/claudevm-config\""
       echo "    writable: false"
-    fi
-  } >> "$rendered"
+      if [ -d "$cfg_dir/secrets" ]; then
+        echo "  - location: \"$cfg_dir/secrets\""
+        echo "    mountPoint: \"/mnt/claudevm-secrets\""
+        echo "    writable: false"
+      fi
+    } >> "$rendered"
 
-  limactl start --name="$name" --tty=false \
-    --cpus="$CPUS" --memory="$MEMORY" --disk="$DISK" \
-    "$rendered"
+    limactl start --name="$name" --tty=false \
+      --cpus="$CPUS" --memory="$MEMORY" --disk="$DISK" \
+      "$rendered"
+  fi
 
   echo
   echo "'$name' is up. Project mounted at /workspace."
