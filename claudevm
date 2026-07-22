@@ -8,9 +8,9 @@
 # Per project:
 #   claudevm new myproject ~/code/myproject     # create config (doesn't boot yet)
 #   claudevm allow myproject                    # optional: edit domain allowlist
-#   claudevm secrets myproject                  # if the VM needs GitHub push access or a
-#                                                # Claude Code token: generates a dedicated
-#                                                # deploy key + saves a scoped Claude token
+#   claudevm secrets myproject                  # if the VM needs a Claude Code token or GitHub
+#                                                # access (push/pull, PRs, Issues/Projects API),
+#                                                # saves a scoped Claude token + GitHub PAT
 #   claudevm up myproject                       # boot the VM
 #   claudevm code myproject                     # open VS Code Remote-SSH into it
 #   ...work...
@@ -34,7 +34,7 @@ Usage: claudevm <command> [args]
 
   new <name> [project-dir]   Create config for a new sandbox (default project-dir: cwd)
   allow <name>                Edit the domain allowlist for a sandbox (\$EDITOR)
-  secrets <name>               Generate a dedicated deploy key + save a Claude Code token
+  secrets <name>               Save a Claude Code token + (optional) GitHub token
   up <name>                   Boot (or resume) the sandbox VM
   down <name>                 Stop the VM (disk state is kept)
   rm <name>                   Stop, delete the VM, and delete its config
@@ -50,6 +50,23 @@ require_instance() {
   if [ ! -d "$INSTANCES_DIR/$name" ]; then
     echo "No config found for '$name'. Run: claudevm new $name [project-dir]" >&2
     exit 1
+  fi
+}
+
+close_ssh_control() {
+  # Lima opens its own SSH connection early in boot to run provisioning, and
+  # (ControlPersist yes) keeps reusing it for later `claudevm ssh`/`limactl
+  # shell`/VS Code sessions. /etc/environment is a file on the guest's own
+  # disk, so at the moment that connection is opened it still holds
+  # whatever the *previous* boot last wrote -- this boot's provisioning
+  # hasn't run yet. That connection's session env is fixed at open time, so
+  # it keeps serving that stale snapshot indefinitely. Force it closed right
+  # after `up` finishes (provisioning is done by then), so the next
+  # connection is guaranteed fresh instead of reusing the early one.
+  local name="$1"
+  local ssh_cfg="$HOME/.lima/$name/ssh.config"
+  if [ -f "$ssh_cfg" ]; then
+    ssh -O exit -F "$ssh_cfg" "lima-$name" >/dev/null 2>&1 || true
   fi
 }
 
@@ -86,6 +103,13 @@ cmd_up() {
     local project_dir
     project_dir="$(cat "$cfg_dir/project-dir")"
 
+    # Always create and mount a secrets dir, even if empty: mounts are
+    # directory-level, so once it's mounted, files can be added or rotated
+    # inside it later (via `claudevm secrets`) without ever needing a new
+    # mount -- just a restart for provisioning to pick them up.
+    mkdir -p "$cfg_dir/secrets"
+    chmod 700 "$cfg_dir/secrets"
+
     # Render a per-instance config: the shared template plus an explicit
     # `mounts:` list, so the VM only ever sees the project dir and its own
     # config/secrets -- never Lima's built-in default mounts (which include
@@ -104,28 +128,17 @@ cmd_up() {
       echo "  - location: \"$cfg_dir\""
       echo "    mountPoint: \"/mnt/claudevm-config\""
       echo "    writable: false"
-      if [ -d "$cfg_dir/secrets" ]; then
-        echo "  - location: \"$cfg_dir/secrets\""
-        echo "    mountPoint: \"/mnt/claudevm-secrets\""
-        echo "    writable: false"
-      fi
+      echo "  - location: \"$cfg_dir/secrets\""
+      echo "    mountPoint: \"/mnt/claudevm-secrets\""
+      echo "    writable: false"
     } >> "$rendered"
 
     limactl start --name="$name" --tty=false \
       --cpus="$CPUS" --memory="$MEMORY" --disk="$DISK" \
       "$rendered"
-
-    # Lima's SSH connection to the guest is opened to run the "system"/"user"
-    # provisioning scripts, and later `claudevm ssh`/`limactl shell` calls
-    # reuse that same connection -- so the very first session after a fresh
-    # create can predate provisioning writing things like
-    # CLAUDE_CODE_OAUTH_TOKEN to /etc/environment. A restart forces a new
-    # connection and picks them up.
-    echo
-    echo "Note: env vars written by provisioning (e.g. CLAUDE_CODE_OAUTH_TOKEN)"
-    echo "may be missing from your very first 'claudevm ssh $name' or VS Code"
-    echo "session. If so, run 'claudevm down $name && claudevm up $name' once."
   fi
+
+  close_ssh_control "$name"
 
   echo
   echo "'$name' is up. Project mounted at /workspace."
@@ -186,41 +199,9 @@ cmd_secrets() {
   local name="${1:?instance name required}"
   require_instance "$name"
 
-  # Lima fixes an instance's mounts at creation time, so a VM created before
-  # secrets existed can never pick up the secrets mount by restarting --
-  # only by being recreated. Refuse up front rather than generating secrets
-  # the running VM won't actually see.
-  if limactl list -q 2>/dev/null | grep -qx "$name"; then
-    local project_dir
-    project_dir="$(cat "$INSTANCES_DIR/$name/project-dir")"
-    echo "'$name' already exists. Lima fixes a VM's mounts at creation time, so" >&2
-    echo "adding secrets now wouldn't be picked up by a restart -- recreate it first:" >&2
-    echo "  claudevm rm $name" >&2
-    echo "  claudevm new $name $project_dir" >&2
-    echo "then run 'claudevm secrets $name' again before 'claudevm up $name'." >&2
-    exit 1
-  fi
-
   local secrets_dir="$INSTANCES_DIR/$name/secrets"
   mkdir -p "$secrets_dir"
   chmod 700 "$secrets_dir"
-
-  if [ ! -f "$secrets_dir/github_deploy_key" ]; then
-    ssh-keygen -t ed25519 -N "" -C "claudevm-$name" -f "$secrets_dir/github_deploy_key" -q
-    echo "Generated a new deploy key for '$name'."
-  else
-    echo "Deploy key already exists for '$name'."
-  fi
-  echo
-  echo "Public key (add this as a DEPLOY KEY on ONE repo only -- not an account-wide SSH key):"
-  echo "  Settings -> Deploy keys -> Add deploy key -> paste, check 'Allow write access' only if needed"
-  echo "  or: gh repo deploy-key add ${secrets_dir}/github_deploy_key.pub --title claudevm-$name --allow-write"
-  echo
-  cat "$secrets_dir/github_deploy_key.pub"
-  echo
-  echo "Also protect the target branch (e.g. main) with a branch protection rule requiring PRs,"
-  echo "so this key can push feature branches but not merge directly."
-  echo
 
   if [ ! -f "$secrets_dir/claude_oauth_token.txt" ]; then
     echo "No Claude Code token yet. On this HOST (not inside the VM), run:"
@@ -234,6 +215,39 @@ cmd_secrets() {
   else
     echo "Claude Code token already saved for '$name'."
   fi
+  echo
+
+  if [ -f "$secrets_dir/gh_api_token.txt" ]; then
+    read -r -p "GitHub API token already saved for '$name'. Replace it? [y/N] " gh_ans
+  else
+    read -r -p "Add a GitHub token for push/pull, PRs, and Issues/Projects access? [y/N] " gh_ans
+  fi
+  case "$gh_ans" in
+    y|Y)
+      echo "Create a fine-grained personal access token at:"
+      echo "  https://github.com/settings/personal-access-tokens/new"
+      echo "Scope it to this repo only, with:"
+      echo "  Repository permissions -> Contents: Read and write      (git push/pull over HTTPS)"
+      echo "  Repository permissions -> Pull requests: Read and write (open/manage PRs)"
+      echo "  Repository permissions -> Issues: Read and write"
+      echo "  Organization permissions -> Projects: Read and write"
+      echo "(Projects access applies to every project your account/org owns --"
+      echo "GitHub has no way to scope it to a single project board.)"
+      echo
+      echo "Also protect the target branch (e.g. main) with a branch protection rule"
+      echo "requiring PRs, so this token can push feature branches but not merge directly."
+      echo
+      echo "Then paste the resulting token below (input hidden):"
+      read -r -s gh_token
+      printf '%s' "$gh_token" > "$secrets_dir/gh_api_token.txt"
+      chmod 600 "$secrets_dir/gh_api_token.txt"
+      echo
+      echo "Saved. Restart the VM to pick it up: claudevm down $name && claudevm up $name"
+      ;;
+    *)
+      echo "Skipped."
+      ;;
+  esac
   echo
   echo "Next: claudevm up $name"
 }

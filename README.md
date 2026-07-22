@@ -31,7 +31,7 @@ Safe to re-run — it refreshes the shared template files but never touches your
 ```bash
 claudevm new myproject ~/code/myproject     # create config (doesn't boot yet)
 claudevm allow myproject                    # optional: edit the domain allowlist
-claudevm secrets myproject                  # optional: GitHub deploy key + Claude token
+claudevm secrets myproject                  # Claude token, optional GitHub token
 claudevm up myproject                       # boot the VM
 claudevm code myproject                     # open VS Code (Remote-SSH) into it
 ```
@@ -42,7 +42,7 @@ claudevm code myproject                     # open VS Code (Remote-SSH) into it
 |---|---|
 | `claudevm new <name> [dir]` | Create config for a new sandbox. `dir` defaults to the current directory. |
 | `claudevm allow <name>` | Edit the domain allowlist (`$EDITOR`). Applied within 5 minutes, or immediately with `refresh`. |
-| `claudevm secrets <name>` | Generate a dedicated deploy key and save a Claude Code token for this VM only. |
+| `claudevm secrets <name>` | Save a Claude Code token, and optionally a GitHub token, for this VM only. |
 | `claudevm up <name>` | Boot (or resume) the VM, mounting the project at `/workspace`. |
 | `claudevm down <name>` | Stop the VM. Disk state is kept. |
 | `claudevm rm <name>` | Stop, delete the VM, and delete its config. Asks for confirmation. |
@@ -70,7 +70,7 @@ Resource sizing (defaults: 4 CPUs, 4 GiB memory, 60 GB disk) can be overridden w
 None of your host credentials are ever mounted into a VM. Instead:
 
 - **Claude Code**: `claudevm secrets <name>` prompts you to run `claude setup-token` on your *host* (it needs a browser, which the VM's firewall wouldn't allow anyway) and saves the result as a per-VM `CLAUDE_CODE_OAUTH_TOKEN` — scoped to inference only, not a full account session.
-- **GitHub**: generates a fresh, dedicated ed25519 keypair per VM. Add the printed public key as a **deploy key on one repo only** — not an account-wide SSH key — so a compromised VM exposes at most one repository. Pair this with a branch protection rule requiring PRs into `main`, so the key can push feature branches but not merge directly.
+- **GitHub (optional)**: `claudevm secrets <name>` can prompt for a fine-grained personal access token, saved as a per-VM `GH_TOKEN`. This is the VM's sole GitHub credential, covering git push/pull (over HTTPS — SSH-style remotes get rewritten transparently), opening/managing PRs, Issues, and, if needed, Projects, all scoped to **one repo only** in the token's repository permissions. Pair this with a branch protection rule requiring PRs into `main`, so the token can push feature branches but not merge directly. One exception to the one-repo scoping: Projects (v2) boards belong to the org/user account, not a repo, so GitHub has no way to scope that permission to a single project board — granting it applies to every project that account owns. Unlike an SSH key, this token has a mandatory expiration; re-run `claudevm secrets <name>` to replace it (it'll offer to overwrite an existing one), then `claudevm down <name> && claudevm up <name>` to pick it up — the mount already exists, so a restart is all it takes, no need to recreate the VM.
 
 See `claudevm secrets --help` output (run the command) for the exact steps it prints.
 
@@ -91,4 +91,3 @@ README.md                   This file
 
 - The firewall filters by resolved IP, refreshed every 5 minutes — solid against casual misuse, but not a guarantee against traffic smuggled over an already-allowed domain.
 - First `claudevm up` downloads the Ubuntu cloud image, so it's slower the first time on a given Mac; later VMs reuse the cache.
-- On a freshly created VM, environment variables written by provisioning (like `CLAUDE_CODE_OAUTH_TOKEN`, via `/etc/environment`) may not show up in your very first `claudevm ssh` or VS Code session. Lima reuses the same SSH connection it used to run provisioning for later shell sessions, and that connection predates provisioning's writes. Run `claudevm down <name> && claudevm up <name>` once to force a fresh connection.

@@ -204,22 +204,15 @@ provision:
 
       /usr/local/bin/update-firewall.sh
 
-  # 5. Wire up per-VM secrets (deploy key + Claude token) if the host mounted them.
-  #    Only ever reads from /mnt/claudevm-secrets, which the wrapper populates from
-  #    a dedicated per-project secrets dir on the host -- never your real ~/.ssh.
+  # 5. Wire up per-VM secrets (Claude token, GitHub API token) if the host
+  #    mounted them. Only ever reads from /mnt/claudevm-secrets, which the
+  #    wrapper populates from a dedicated per-project secrets dir on the
+  #    host -- never your real credentials.
   - mode: user
     script: |
       #!/bin/bash
       set -eu
       SECRETS=/mnt/claudevm-secrets
-
-      if [ -f "$SECRETS/github_deploy_key" ]; then
-        mkdir -p ~/.ssh
-        cp "$SECRETS/github_deploy_key" ~/.ssh/id_ed25519
-        chmod 600 ~/.ssh/id_ed25519
-        ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null || true
-        sort -u -o ~/.ssh/known_hosts ~/.ssh/known_hosts
-      fi
 
       if [ -f "$SECRETS/claude_oauth_token.txt" ]; then
         # /etc/environment (via PAM) rather than ~/.bashrc: VS Code's
@@ -229,4 +222,24 @@ provision:
         TOKEN="$(cat "$SECRETS/claude_oauth_token.txt")"
         sudo sed -i '/^CLAUDE_CODE_OAUTH_TOKEN=/d' /etc/environment
         echo "CLAUDE_CODE_OAUTH_TOKEN=\"$TOKEN\"" | sudo tee -a /etc/environment > /dev/null
+      fi
+
+      if [ -f "$SECRETS/gh_api_token.txt" ]; then
+        # GH_TOKEN is what `gh` CLI (and many GitHub API scripts) look for
+        # to authenticate non-interactively, and is also used below as the
+        # credential for git operations over HTTPS.
+        GH_TOKEN="$(cat "$SECRETS/gh_api_token.txt")"
+        sudo sed -i '/^GH_TOKEN=/d' /etc/environment
+        echo "GH_TOKEN=\"$GH_TOKEN\"" | sudo tee -a /etc/environment > /dev/null
+
+        # Rewrite SSH-style remotes to HTTPS transparently, so
+        # `git@github.com:...` remotes work without editing them. The
+        # credential helper reads $GH_TOKEN from its own environment at call
+        # time (single-quoted here so it's NOT expanded now), so a rotated
+        # token takes effect on the next login session with no
+        # re-provisioning needed.
+        git config --global url."https://github.com/".insteadOf "git@github.com:"
+        git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+        git config --global credential.https://github.com.helper \
+          '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'
       fi
