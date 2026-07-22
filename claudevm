@@ -1,0 +1,213 @@
+#!/usr/bin/env bash
+#
+# claudevm — manage per-project Lima sandbox VMs for Claude Code sessions.
+#
+# Setup (once):
+#   brew install lima
+#   mkdir -p ~/.claudevms
+#   cp claude-sandbox.yaml default-allowlist.txt ~/.claudevms/
+#   cp claudevm /usr/local/bin/claudevm && chmod +x /usr/local/bin/claudevm
+#   echo 'Include ~/.lima/*/ssh.config' >> ~/.ssh/config   # only if not already present
+#
+# Per project:
+#   claudevm new myproject ~/code/myproject     # create config (doesn't boot yet)
+#   claudevm allow myproject                    # optional: edit domain allowlist
+#   claudevm secrets myproject                  # if the VM needs GitHub push access or a
+#                                                # Claude Code token: generates a dedicated
+#                                                # deploy key + saves a scoped Claude token
+#   claudevm up myproject                       # boot the VM
+#   claudevm code myproject                     # open VS Code Remote-SSH into it
+#   ...work...
+#   claudevm down myproject                     # stop (keeps disk state)
+#   claudevm rm myproject                       # stop + delete VM + delete config
+#
+set -euo pipefail
+
+CLAUDEVM_HOME="${CLAUDEVM_HOME:-$HOME/.claudevms}"
+TEMPLATE="$CLAUDEVM_HOME/claude-sandbox.yaml"
+DEFAULT_ALLOWLIST="$CLAUDEVM_HOME/default-allowlist.txt"
+INSTANCES_DIR="$CLAUDEVM_HOME/instances"
+
+CPUS="${CLAUDEVM_CPUS:-4}"
+MEMORY="${CLAUDEVM_MEMORY:-4}"   # GiB
+DISK="${CLAUDEVM_DISK:-60}"      # GiB
+
+usage() {
+  cat <<EOF
+Usage: claudevm <command> [args]
+
+  new <name> [project-dir]   Create config for a new sandbox (default project-dir: cwd)
+  allow <name>                Edit the domain allowlist for a sandbox (\$EDITOR)
+  secrets <name>               Generate a dedicated deploy key + save a Claude Code token
+  up <name>                   Boot (or resume) the sandbox VM
+  down <name>                 Stop the VM (disk state is kept)
+  rm <name>                   Stop, delete the VM, and delete its config
+  ssh <name>                  Shell into the VM
+  code <name>                 Open VS Code (Remote-SSH) into /workspace on the VM
+  refresh <name>               Re-run the firewall/allowlist refresh immediately
+  ls                           List all Lima VMs (claudevm-managed and otherwise)
+EOF
+}
+
+require_instance() {
+  local name="$1"
+  if [ ! -d "$INSTANCES_DIR/$name" ]; then
+    echo "No config found for '$name'. Run: claudevm new $name [project-dir]" >&2
+    exit 1
+  fi
+}
+
+cmd_new() {
+  local name="${1:?instance name required}"
+  local project_dir="${2:-$PWD}"
+  project_dir="$(cd "$project_dir" && pwd)"
+
+  [ -f "$TEMPLATE" ] || { echo "Missing $TEMPLATE — copy claude-sandbox.yaml into $CLAUDEVM_HOME first." >&2; exit 1; }
+
+  local cfg_dir="$INSTANCES_DIR/$name"
+  mkdir -p "$cfg_dir"
+  cp "$DEFAULT_ALLOWLIST" "$cfg_dir/allowlist.txt"
+  echo "$project_dir" > "$cfg_dir/project-dir"
+
+  echo "Created sandbox config: $name"
+  echo "  Project dir:  $project_dir"
+  echo "  Allowlist:    $cfg_dir/allowlist.txt  (edit with: claudevm allow $name)"
+  echo "Next: claudevm up $name"
+}
+
+cmd_up() {
+  local name="${1:?instance name required}"
+  require_instance "$name"
+  local cfg_dir="$INSTANCES_DIR/$name"
+  local project_dir
+  project_dir="$(cat "$cfg_dir/project-dir")"
+
+  local mount_args=(
+    --mount "$project_dir:/workspace:w"
+    --mount "$cfg_dir:/mnt/claudevm-config:ro"
+  )
+  if [ -d "$cfg_dir/secrets" ]; then
+    mount_args+=(--mount "$cfg_dir/secrets:/mnt/claudevm-secrets:ro")
+  fi
+
+  limactl start --name="$name" \
+    --cpus="$CPUS" --memory="$MEMORY" --disk="$DISK" \
+    "${mount_args[@]}" \
+    "$TEMPLATE"
+
+  echo
+  echo "'$name' is up. Project mounted at /workspace."
+  echo "  Shell:  claudevm ssh $name"
+  echo "  VS Code: claudevm code $name"
+}
+
+cmd_down() {
+  local name="${1:?instance name required}"
+  limactl stop "$name"
+}
+
+cmd_rm() {
+  local name="${1:?instance name required}"
+  read -r -p "Delete VM and config for '$name'? This cannot be undone. [y/N] " ans
+  case "$ans" in
+    y|Y) ;;
+    *) echo "Aborted."; exit 0 ;;
+  esac
+  limactl stop "$name" 2>/dev/null || true
+  limactl delete "$name" 2>/dev/null || true
+  rm -rf "${INSTANCES_DIR:?}/$name"
+  echo "Removed '$name'."
+}
+
+cmd_ssh() {
+  local name="${1:?instance name required}"
+  limactl shell "$name"
+}
+
+cmd_code() {
+  local name="${1:?instance name required}"
+  if ! command -v code >/dev/null 2>&1; then
+    echo "The 'code' CLI isn't on your PATH. In VS Code: Cmd+Shift+P -> 'Shell Command: Install code command in PATH'." >&2
+    exit 1
+  fi
+  code --remote "ssh-remote+lima-$name" /workspace
+}
+
+cmd_refresh() {
+  local name="${1:?instance name required}"
+  limactl shell "$name" -- sudo /usr/local/bin/update-firewall.sh
+  echo "Firewall allowlist refreshed on '$name'."
+}
+
+cmd_allow() {
+  local name="${1:?instance name required}"
+  require_instance "$name"
+  "${EDITOR:-nano}" "$INSTANCES_DIR/$name/allowlist.txt"
+  echo "Saved. Apply now with: claudevm refresh $name  (otherwise it applies within 5 min)"
+}
+
+cmd_ls() {
+  limactl list
+}
+
+cmd_secrets() {
+  local name="${1:?instance name required}"
+  require_instance "$name"
+  local secrets_dir="$INSTANCES_DIR/$name/secrets"
+  mkdir -p "$secrets_dir"
+  chmod 700 "$secrets_dir"
+
+  if [ ! -f "$secrets_dir/github_deploy_key" ]; then
+    ssh-keygen -t ed25519 -N "" -C "claudevm-$name" -f "$secrets_dir/github_deploy_key" -q
+    echo "Generated a new deploy key for '$name'."
+  else
+    echo "Deploy key already exists for '$name'."
+  fi
+  echo
+  echo "Public key (add this as a DEPLOY KEY on ONE repo only -- not an account-wide SSH key):"
+  echo "  Settings -> Deploy keys -> Add deploy key -> paste, check 'Allow write access' only if needed"
+  echo "  or: gh repo deploy-key add ${secrets_dir}/github_deploy_key.pub --title claudevm-$name --allow-write"
+  echo
+  cat "$secrets_dir/github_deploy_key.pub"
+  echo
+  echo "Also protect the target branch (e.g. main) with a branch protection rule requiring PRs,"
+  echo "so this key can push feature branches but not merge directly."
+  echo
+
+  if [ ! -f "$secrets_dir/claude_oauth_token.txt" ]; then
+    echo "No Claude Code token yet. On this HOST (not inside the VM), run:"
+    echo "    claude setup-token"
+    echo "Then paste the resulting token below (input hidden):"
+    read -r -s token
+    printf '%s' "$token" > "$secrets_dir/claude_oauth_token.txt"
+    chmod 600 "$secrets_dir/claude_oauth_token.txt"
+    echo
+    echo "Saved."
+  else
+    echo "Claude Code token already saved for '$name'."
+  fi
+  echo
+  echo "Restart the VM to pick these up: claudevm down $name && claudevm up $name"
+}
+
+main() {
+  local cmd="${1:-}"
+  [ -n "$cmd" ] || { usage; exit 1; }
+  shift || true
+  case "$cmd" in
+    new) cmd_new "$@" ;;
+    allow) cmd_allow "$@" ;;
+    secrets) cmd_secrets "$@" ;;
+    up) cmd_up "$@" ;;
+    down) cmd_down "$@" ;;
+    rm) cmd_rm "$@" ;;
+    ssh) cmd_ssh "$@" ;;
+    code) cmd_code "$@" ;;
+    refresh) cmd_refresh "$@" ;;
+    ls) cmd_ls "$@" ;;
+    -h|--help|help) usage ;;
+    *) echo "Unknown command: $cmd" >&2; usage; exit 1 ;;
+  esac
+}
+
+main "$@"

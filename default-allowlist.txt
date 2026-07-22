@@ -1,0 +1,30 @@
+# One domain per line. Lines starting with # are ignored.
+# This file is re-read every 5 minutes inside the VM (see update-firewall.sh),
+# so you can edit it on the host and changes take effect without a rebuild.
+#
+# Edit with: claudevm allow <name>
+# Apply immediately (don't wait for the 5-min cron): claudevm refresh <name>
+
+# Anthropic / Claude Code
+api.anthropic.com
+statsig.anthropic.com
+sentry.io
+
+# GitHub
+github.com
+api.github.com
+raw.githubusercontent.com
+objects.githubusercontent.com
+codeload.github.com
+
+# npm / Node
+registry.npmjs.org
+
+# Python
+pypi.org
+files.pythonhosted.org
+
+# Ubuntu package mirrors (needed for apt-get inside the VM)
+archive.ubuntu.com
+security.ubuntu.com
+ports.ubuntu.com

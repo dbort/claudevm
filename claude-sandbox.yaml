@@ -1,0 +1,98 @@
+# claude-sandbox.yaml
+#
+# Lima template for a per-project Claude Code sandbox VM.
+# Mounts and resource sizing are passed at `limactl start` time (see the
+# `claudevm` wrapper script) so this file stays generic across projects.
+#
+# What this adds on top of stock Ubuntu:
+#   1. iptables/ipset/dig installed
+#   2. Default-deny OUTPOUND firewall (only loopback, DNS, and established
+#      connections allowed by default)
+#   3. A refreshed allowlist of domains (read from /mnt/claudevm-config/allowlist.txt,
+#      which the wrapper mounts read-only from the host) resolved to IPs and
+#      added to an ipset, re-checked every 5 minutes via cron since many
+#      services (npm, GitHub, PyPI...) sit behind rotating CDN IPs.
+
+base: template://ubuntu-lts
+
+provision:
+  # 1. Base packages
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -y
+      apt-get install -y iptables ipset dnsutils cron
+      systemctl enable --now cron
+
+  # 2. Default-deny egress policy (rebuilt fresh every boot)
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eu
+      iptables -F OUTPUT
+      iptables -P OUTPUT DROP
+      iptables -A OUTPUT -o lo -j ACCEPT
+      iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+      iptables -A OUTPUT -p udp --dport 53 -j ACCEPT
+      iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT
+
+  # 3. Install the allowlist-refresh script, run it once, and schedule it
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eu
+      cat > /usr/local/bin/update-firewall.sh << 'SCRIPT'
+      #!/bin/bash
+      set -eu
+      ALLOWLIST="/mnt/claudevm-config/allowlist.txt"
+      SET_NAME="claudevm-allowed"
+
+      ipset create "$SET_NAME" hash:ip timeout 300 -exist
+      ipset flush "$SET_NAME"
+
+      while IFS= read -r domain; do
+        domain="$(echo "$domain" | sed 's/#.*//' | xargs)"
+        [ -z "$domain" ] && continue
+        for ip in $(dig +short "$domain" A | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'); do
+          ipset add "$SET_NAME" "$ip" timeout 300 -exist
+        done
+      done < "$ALLOWLIST"
+
+      iptables -C OUTPUT -m set --match-set "$SET_NAME" dst -j ACCEPT 2>/dev/null || \
+        iptables -A OUTPUT -m set --match-set "$SET_NAME" dst -j ACCEPT
+      SCRIPT
+      chmod +x /usr/local/bin/update-firewall.sh
+
+      echo '*/5 * * * * root /usr/local/bin/update-firewall.sh >>/var/log/update-firewall.log 2>&1' \
+        > /etc/cron.d/claudevm-firewall
+
+      /usr/local/bin/update-firewall.sh
+
+  # 4. Wire up per-VM secrets (deploy key + Claude token) if the host mounted them.
+  #    Only ever reads from /mnt/claudevm-secrets, which the wrapper populates from
+  #    a dedicated per-project secrets dir on the host -- never your real ~/.ssh.
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eu
+      SECRETS=/mnt/claudevm-secrets
+
+      if [ -f "$SECRETS/github_deploy_key" ]; then
+        mkdir -p ~/.ssh
+        cp "$SECRETS/github_deploy_key" ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null || true
+        sort -u -o ~/.ssh/known_hosts ~/.ssh/known_hosts
+      fi
+
+      if [ -f "$SECRETS/claude_oauth_token.txt" ]; then
+        MARKER="# claudevm: Claude Code token (do not edit by hand)"
+        if ! grep -qF "$MARKER" ~/.bashrc 2>/dev/null; then
+          {
+            echo "$MARKER"
+            echo "export CLAUDE_CODE_OAUTH_TOKEN=\"\$(cat $SECRETS/claude_oauth_token.txt)\""
+          } >> ~/.bashrc
+        fi
+      fi
