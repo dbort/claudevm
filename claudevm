@@ -166,7 +166,7 @@ cmd_rm() {
 
 cmd_ssh() {
   local name="${1:?instance name required}"
-  limactl shell "$name"
+  limactl shell --workdir /workspace "$name"
 }
 
 cmd_code() {
