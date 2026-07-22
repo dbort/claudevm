@@ -3,12 +3,12 @@
 # install.sh — set up claudevm on this Mac.
 #
 # Safe to re-run: it overwrites the shared template/allowlist files but never
-# touches your per-project instances under ~/.claudevms/instances/.
+# touches your per-project instances under ~/.local/var/claudevm/instances/.
 
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLAUDEVM_HOME="${CLAUDEVM_HOME:-$HOME/.claudevms}"
+CLAUDEVM_HOME="${CLAUDEVM_HOME:-$HOME/.config/claudevm}"
 
 echo "==> Checking dependencies"
 if ! command -v limactl >/dev/null 2>&1; then
@@ -37,7 +37,7 @@ cp "$REPO_DIR/default-allowlist.txt" "$CLAUDEVM_HOME/"
 
 echo "==> Installing the claudevm command"
 BIN_DIR=""
-for candidate in /opt/homebrew/bin "$HOME/.local/bin" /usr/local/bin; do
+for candidate in "$HOME/.local/bin" /opt/homebrew/bin /usr/local/bin; do
   if [ -d "$candidate" ] && [ -w "$candidate" ]; then
     BIN_DIR="$candidate"
     break

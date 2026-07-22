@@ -3,11 +3,7 @@
 # claudevm — manage per-project Lima sandbox VMs for Claude Code sessions.
 #
 # Setup (once):
-#   brew install lima
-#   mkdir -p ~/.claudevms
-#   cp claude-sandbox.yaml default-allowlist.txt ~/.claudevms/
-#   cp claudevm /usr/local/bin/claudevm && chmod +x /usr/local/bin/claudevm
-#   echo 'Include ~/.lima/*/ssh.config' >> ~/.ssh/config   # only if not already present
+#   ./install.sh
 #
 # Per project:
 #   claudevm new myproject ~/code/myproject     # create config (doesn't boot yet)
@@ -23,10 +19,10 @@
 #
 set -euo pipefail
 
-CLAUDEVM_HOME="${CLAUDEVM_HOME:-$HOME/.claudevms}"
+CLAUDEVM_HOME="${CLAUDEVM_HOME:-$HOME/.config/claudevm}"
 TEMPLATE="$CLAUDEVM_HOME/claude-sandbox.yaml"
 DEFAULT_ALLOWLIST="$CLAUDEVM_HOME/default-allowlist.txt"
-INSTANCES_DIR="$CLAUDEVM_HOME/instances"
+INSTANCES_DIR="${CLAUDEVM_INSTANCES:-$HOME/.local/var/claudevm/instances}"
 
 CPUS="${CLAUDEVM_CPUS:-4}"
 MEMORY="${CLAUDEVM_MEMORY:-4}"   # GiB
@@ -82,18 +78,34 @@ cmd_up() {
   local project_dir
   project_dir="$(cat "$cfg_dir/project-dir")"
 
-  local mount_args=(
-    --mount "$project_dir:/workspace:w"
-    --mount "$cfg_dir:/mnt/claudevm-config:ro"
-  )
-  if [ -d "$cfg_dir/secrets" ]; then
-    mount_args+=(--mount "$cfg_dir/secrets:/mnt/claudevm-secrets:ro")
-  fi
+  # Render a per-instance config: the shared template plus an explicit
+  # `mounts:` list, so the VM only ever sees the project dir and its own
+  # config/secrets -- never Lima's built-in default mounts (which include
+  # the host's home directory). Built via plain file concatenation, not a
+  # CLI `--mount` flag, since that flag's accepted syntax isn't consistent
+  # across Lima versions and silently falling back to Lima's defaults is
+  # exactly what exposed the host home directory before this fix.
+  local rendered="$cfg_dir/.lima.yaml"
+  cp "$TEMPLATE" "$rendered"
+  {
+    echo
+    echo "mounts:"
+    echo "  - location: \"$project_dir\""
+    echo "    mountPoint: \"/workspace\""
+    echo "    writable: true"
+    echo "  - location: \"$cfg_dir\""
+    echo "    mountPoint: \"/mnt/claudevm-config\""
+    echo "    writable: false"
+    if [ -d "$cfg_dir/secrets" ]; then
+      echo "  - location: \"$cfg_dir/secrets\""
+      echo "    mountPoint: \"/mnt/claudevm-secrets\""
+      echo "    writable: false"
+    fi
+  } >> "$rendered"
 
-  limactl start --name="$name" \
+  limactl start --name="$name" --tty=false \
     --cpus="$CPUS" --memory="$MEMORY" --disk="$DISK" \
-    "${mount_args[@]}" \
-    "$TEMPLATE"
+    "$rendered"
 
   echo
   echo "'$name' is up. Project mounted at /workspace."
