@@ -82,6 +82,13 @@ cmd_new() {
   cp "$DEFAULT_ALLOWLIST" "$cfg_dir/allowlist.txt"
   echo "$project_dir" > "$cfg_dir/project-dir"
 
+  if [ -f "$HOME/.gitconfig" ]; then
+    cp "$HOME/.gitconfig" "$cfg_dir/gitconfig"
+  fi
+  if [ -f "$HOME/.vimrc" ]; then
+    cp "$HOME/.vimrc" "$cfg_dir/vimrc"
+  fi
+
   echo "Created sandbox config: $name"
   echo "  Project dir:  $project_dir"
   echo "  Allowlist:    $cfg_dir/allowlist.txt  (edit with: claudevm allow $name)"

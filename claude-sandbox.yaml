@@ -33,6 +33,8 @@
 #      which the wrapper mounts read-only from the host) resolved to IPs and
 #      added to an ipset, re-checked every 5 minutes via cron since many
 #      services (npm, GitHub, PyPI...) sit behind rotating CDN IPs.
+#   5. ~/.gitconfig and ~/.vimrc seeded from the host's copies, if `claudevm
+#      new` found any (one-time only, so later in-VM edits stick).
 
 minimumLimaVersion: 2.0.0
 
@@ -242,4 +244,21 @@ provision:
         git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
         git config --global credential.https://github.com.helper \
           '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'
+      fi
+
+  # 6. Seed dotfiles from the host, if `claudevm new` copied them in. Only
+  #    ever placed once (skipped if the guest already has one), so later
+  #    in-VM edits survive reboots instead of being overwritten each time.
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eu
+      CONFIG=/mnt/claudevm-config
+
+      if [ -f "$CONFIG/gitconfig" ] && [ ! -f ~/.gitconfig ]; then
+        cp "$CONFIG/gitconfig" ~/.gitconfig
+      fi
+
+      if [ -f "$CONFIG/vimrc" ] && [ ! -f ~/.vimrc ]; then
+        cp "$CONFIG/vimrc" ~/.vimrc
       fi

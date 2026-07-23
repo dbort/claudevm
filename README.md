@@ -55,14 +55,15 @@ Resource sizing (defaults: 4 CPUs, 4 GiB memory, 60 GB disk) can be overridden w
 
 ## How it works
 
-- **`claude-sandbox.yaml`** is a Lima template (based on `template://ubuntu-lts`) that:
+- **`claude-sandbox.yaml`** is a Lima template (Ubuntu, self-contained — see the file header for why it doesn't use Lima's `base:` composition) that:
   - installs `iptables`/`ipset`
   - pins DNS resolution to fixed resolvers (Quad9 `9.9.9.9` primary, Cloudflare `1.1.1.1` secondary) instead of whatever the DHCP-provided resolver happens to be
   - sets a default-deny egress policy, with DNS egress itself restricted to just those two resolver IPs
   - blocks all IPv6 egress outright (loopback only) — the allowlist mechanism only handles IPv4
   - installs a script that resolves your allowlist domains to IPs and refreshes them every 5 minutes via cron — a one-time DNS resolution isn't enough since services like npm and GitHub sit behind rotating CDN IPs
+  - seeds `~/.gitconfig` and `~/.vimrc` from your host's copies, if `claudevm new` found any — one-time only, so later in-VM edits aren't overwritten on reboot
 - **`default-allowlist.txt`** is the starting domain list (Anthropic API, GitHub, npm, PyPI, Ubuntu mirrors), copied per-project so you can tune it per sandbox.
-- **`claudevm`** is the wrapper: it passes your project directory and per-instance config to `limactl start` via `--mount` flags, so the template itself stays generic across all projects.
+- **`claudevm`** is the wrapper: at `up` time it renders a per-instance Lima config (template plus an explicit `mounts:` list for the project dir and per-instance config/secrets) so the shared template file stays generic across all projects.
 - **`pre-push-branch-guard.sh`** is an optional git hook you can drop into a project to block direct pushes to protected branches, as a local backstop alongside GitHub branch protection rules.
 
 ## Credentials
