@@ -32,7 +32,7 @@ usage() {
   cat <<EOF
 Usage: claudevm <command> [args]
 
-  new <name> [project-dir]   Create config for a new sandbox (default project-dir: cwd)
+  new <name> <project-dir>   Create config for a new sandbox
   allow <name>                Edit the domain allowlist for a sandbox (\$EDITOR)
   secrets <name>               Save a Claude Code token + (optional) GitHub token
   up <name>                   Boot (or resume) the sandbox VM
@@ -48,7 +48,7 @@ EOF
 require_instance() {
   local name="$1"
   if [ ! -d "$INSTANCES_DIR/$name" ]; then
-    echo "No config found for '$name'. Run: claudevm new $name [project-dir]" >&2
+    echo "No config found for '$name'. Run: claudevm new $name <project-dir>" >&2
     exit 1
   fi
 }
@@ -72,7 +72,7 @@ close_ssh_control() {
 
 cmd_new() {
   local name="${1:?instance name required}"
-  local project_dir="${2:-$PWD}"
+  local project_dir="${2:?project directory required}"
   project_dir="$(cd "$project_dir" && pwd)"
 
   [ -f "$TEMPLATE" ] || { echo "Missing $TEMPLATE — copy claude-sandbox.yaml into $CLAUDEVM_HOME first." >&2; exit 1; }

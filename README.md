@@ -40,7 +40,7 @@ claudevm code myproject                     # open VS Code (Remote-SSH) into it
 
 | Command | What it does |
 |---|---|
-| `claudevm new <name> [dir]` | Create config for a new sandbox. `dir` defaults to the current directory. |
+| `claudevm new <name> <dir>` | Create config for a new sandbox, mounting `dir` as `/workspace`. |
 | `claudevm allow <name>` | Edit the domain allowlist (`$EDITOR`). Applied within 5 minutes, or immediately with `refresh`. |
 | `claudevm secrets <name>` | Save a Claude Code token, and optionally a GitHub token, for this VM only. |
 | `claudevm up <name>` | Boot (or resume) the VM, mounting the project at `/workspace`. |
