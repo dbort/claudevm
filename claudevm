@@ -194,7 +194,7 @@ cmd_refresh() {
 cmd_allow() {
   local name="${1:?instance name required}"
   require_instance "$name"
-  "${EDITOR:-nano}" "$INSTANCES_DIR/$name/allowlist.txt"
+  "${EDITOR:-vi}" "$INSTANCES_DIR/$name/allowlist.txt"
   echo "Saved. Apply now with: claudevm refresh $name  (otherwise it applies within 5 min)"
 }
 

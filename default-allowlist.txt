@@ -6,6 +6,8 @@
 # Apply immediately (don't wait for the 5-min cron): claudevm refresh <name>
 
 # Anthropic / Claude Code
+claude.ai
+downloads.claude.ai
 api.anthropic.com
 statsig.anthropic.com
 sentry.io
