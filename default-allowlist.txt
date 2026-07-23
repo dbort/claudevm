@@ -24,6 +24,12 @@ registry.npmjs.org
 pypi.org
 files.pythonhosted.org
 
+# Go
+go.dev
+dl.google.com
+proxy.golang.org
+sum.golang.org
+
 # Ubuntu package mirrors (needed for apt-get inside the VM)
 archive.ubuntu.com
 security.ubuntu.com
