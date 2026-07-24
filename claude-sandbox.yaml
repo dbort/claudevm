@@ -19,7 +19,8 @@
 # ships new point releases -- compare against Lima's own ubuntu-lts template.
 #
 # What this adds on top of stock Ubuntu:
-#   1. iptables/ipset/dig installed
+#   1. iptables/ipset/dig installed, plus python3/pip3/venv (whatever Ubuntu
+#      26.04 currently ships as its default, no PPA/version pinning)
 #   2. DNS resolution pinned to fixed resolvers -- Quad9 (9.9.9.9) primary,
 #      Cloudflare (1.1.1.1) secondary -- instead of whatever the DHCP-provided
 #      resolver happens to be, so the firewall step below has a fixed, known
@@ -35,6 +36,9 @@
 #      services (npm, GitHub, PyPI...) sit behind rotating CDN IPs.
 #   5. ~/.gitconfig and ~/.vimrc seeded from the host's copies, if `claudevm
 #      new` found any (one-time only, so later in-VM edits stick).
+#   6. Per-VM secrets (Claude token, GitHub token) wired up from
+#      /mnt/claudevm-secrets if the host provided them -- never your real
+#      host credentials.
 
 minimumLimaVersion: 2.0.0
 
@@ -119,7 +123,7 @@ provision:
       set -eux
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -y
-      apt-get install -y iptables ipset dnsutils cron
+      apt-get install -y iptables ipset dnsutils cron python3 python3-pip python3-venv
       systemctl enable --now cron
 
   # 2. Pin DNS resolution to fixed, trusted resolvers (Quad9 primary, Cloudflare
@@ -206,47 +210,7 @@ provision:
 
       /usr/local/bin/update-firewall.sh
 
-  # 5. Wire up per-VM secrets (Claude token, GitHub API token) if the host
-  #    mounted them. Only ever reads from /mnt/claudevm-secrets, which the
-  #    wrapper populates from a dedicated per-project secrets dir on the
-  #    host -- never your real credentials.
-  - mode: user
-    script: |
-      #!/bin/bash
-      set -eu
-      SECRETS=/mnt/claudevm-secrets
-
-      if [ -f "$SECRETS/claude_oauth_token.txt" ]; then
-        # /etc/environment (via PAM) rather than ~/.bashrc: VS Code's
-        # Remote-SSH extension host is spawned as a background process over
-        # SSH, not an interactive login shell, so it may never source
-        # ~/.bashrc and would fail to see the token there.
-        TOKEN="$(cat "$SECRETS/claude_oauth_token.txt")"
-        sudo sed -i '/^CLAUDE_CODE_OAUTH_TOKEN=/d' /etc/environment
-        echo "CLAUDE_CODE_OAUTH_TOKEN=\"$TOKEN\"" | sudo tee -a /etc/environment > /dev/null
-      fi
-
-      if [ -f "$SECRETS/gh_api_token.txt" ]; then
-        # GH_TOKEN is what `gh` CLI (and many GitHub API scripts) look for
-        # to authenticate non-interactively, and is also used below as the
-        # credential for git operations over HTTPS.
-        GH_TOKEN="$(cat "$SECRETS/gh_api_token.txt")"
-        sudo sed -i '/^GH_TOKEN=/d' /etc/environment
-        echo "GH_TOKEN=\"$GH_TOKEN\"" | sudo tee -a /etc/environment > /dev/null
-
-        # Rewrite SSH-style remotes to HTTPS transparently, so
-        # `git@github.com:...` remotes work without editing them. The
-        # credential helper reads $GH_TOKEN from its own environment at call
-        # time (single-quoted here so it's NOT expanded now), so a rotated
-        # token takes effect on the next login session with no
-        # re-provisioning needed.
-        git config --global url."https://github.com/".insteadOf "git@github.com:"
-        git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
-        git config --global credential.https://github.com.helper \
-          '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'
-      fi
-
-  # 6. Seed dotfiles from the host, if `claudevm new` copied them in. Only
+  # 5. Seed dotfiles from the host, if `claudevm new` copied them in. Only
   #    ever placed once (skipped if the guest already has one), so later
   #    in-VM edits survive reboots instead of being overwritten each time.
   - mode: user
@@ -257,8 +221,54 @@ provision:
 
       if [ -f "$CONFIG/gitconfig" ] && [ ! -f ~/.gitconfig ]; then
         cp "$CONFIG/gitconfig" ~/.gitconfig
+        # A host-wide credential.helper (e.g. macOS's osxkeychain) won't
+        # exist on Linux; URL-scoped helpers (secrets' own github.com one,
+        # or others the host config may set) are untouched.
+        git config --global --unset credential.helper 2>/dev/null || true
       fi
 
       if [ -f "$CONFIG/vimrc" ] && [ ! -f ~/.vimrc ]; then
         cp "$CONFIG/vimrc" ~/.vimrc
+      fi
+
+  # 6. Wire up per-VM secrets (Claude token, GitHub API token), scoped to
+  #    this VM only, never your real host credentials. Runs on every boot.
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eu
+      SECRETS=/mnt/claudevm-secrets
+
+      # Copy secrets from the mounted files into the environment and other
+      # config files. Use /etc/environment instead of ~/.bashrc because VS
+      # Code's Remote-SSH extension host is a non-interactive background process
+      # and won't source bashrc.
+
+      # If a given token is no longer present, delete it from any persistent
+      # files.
+
+      # Claude auth
+      sudo sed -i '/^CLAUDE_CODE_OAUTH_TOKEN=/d' /etc/environment
+      if [ -f "$SECRETS/claude_oauth_token.txt" ]; then
+        TOKEN="$(cat "$SECRETS/claude_oauth_token.txt")"
+        echo "CLAUDE_CODE_OAUTH_TOKEN=\"$TOKEN\"" | sudo tee -a /etc/environment > /dev/null
+      fi
+
+      # Github auth
+      sudo sed -i '/^GH_TOKEN=/d' /etc/environment
+      git config --global --unset-all url."https://github.com/".insteadOf 2>/dev/null || true
+      git config --global --unset credential.https://github.com.helper 2>/dev/null || true
+      if [ -f "$SECRETS/gh_api_token.txt" ]; then
+        # GH_TOKEN: what `gh` and most GitHub API scripts expect.
+        GH_TOKEN="$(cat "$SECRETS/gh_api_token.txt")"
+        echo "GH_TOKEN=\"$GH_TOKEN\"" | sudo tee -a /etc/environment > /dev/null
+
+        # Make SSH-style remotes resolve over HTTPS instead, so existing
+        # git@github.com:... remotes work unmodified.
+        git config --global --add url."https://github.com/".insteadOf "git@github.com:"
+        git config --global --add url."https://github.com/".insteadOf "ssh://git@github.com/"
+        # Single-quoted $GH_TOKEN resolves per-invocation, so a rotated token
+        # takes effect without re-provisioning.
+        git config --global credential.https://github.com.helper \
+          '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'
       fi
