@@ -90,5 +90,6 @@ README.md                   This file
 
 ## Limitations
 
+- **The firewall is enforced entirely inside the guest, by the guest's own root — not from the host.** The iptables rules, the allowed-IP set, and the refresh script all live on the VM's own disk. The default user has passwordless `sudo`, so anything able to run shell commands as that user — Claude Code itself, or any dependency it installs via `npm`/`pip`/`go get` — can disable the firewall entirely with one command (e.g. `sudo iptables -P OUTPUT ACCEPT`). It's defense-in-depth against casual or accidental exfiltration, not a hard boundary against a deliberately malicious or compromised process running inside the VM. The boundary that does hold regardless: the VM itself. Even a fully firewall-defeated guest still can't reach your real host credentials or other projects — only whatever's scoped to that one VM (its own tokens, its own project code).
 - The firewall filters by resolved IP, refreshed every 5 minutes — solid against casual misuse, but not a guarantee against traffic smuggled over an already-allowed domain.
 - First `claudevm up` downloads the Ubuntu cloud image, so it's slower the first time on a given Mac; later VMs reuse the cache.
