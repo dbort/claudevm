@@ -2,8 +2,8 @@
 
 ## Status
 
-Not started. Written up as a plan doc before implementation; nothing in this
-repo has been changed yet for this task.
+Done. All 6 steps complete, including the manual CLAUDE.md addition (step 6)
+to the project running in the VM.
 
 ## Background
 
@@ -72,9 +72,9 @@ Fixing this correctly means changing how `update-firewall.sh` manages rule
 
 ## Proposed plan
 
-1. Move ownership of the catch-all REJECT rule into `update-firewall.sh`
-   itself, so it's managed by the same script that owns the ACCEPT rule's
-   position, on every run (not just once at boot):
+1. **Done**: Moved ownership of the catch-all REJECT rule into
+   `update-firewall.sh` itself, so it's managed by the same script that owns
+   the ACCEPT rule's position, on every run (not just once at boot):
    - Delete any existing catch-all REJECT rule for `OUTPUT` (if present).
    - Ensure the ipset ACCEPT rule is present (existing `-C`/`-A` logic,
      unchanged).
@@ -83,10 +83,10 @@ Fixing this correctly means changing how `update-firewall.sh` manages rule
    regardless of how many times the script has already run or what state the
    chain was left in — rather than relying on a fixed rule-position number
    that could silently drift wrong if the static rule count ever changes.
-2. Don't duplicate a REJECT rule in step 3. Step 4 already invokes
-   `update-firewall.sh` once immediately after installing it (before boot is
-   considered complete), so there's no meaningful window where a fresh VM has
-   the ACCEPT rule but not the REJECT rule.
+2. **Done**: no REJECT rule was duplicated in step 3 -- confirmed it already
+   had none, so step 4 (which invokes `update-firewall.sh` once immediately
+   after installing it) is the sole owner from the start; no window where a
+   fresh VM has the ACCEPT rule but not the REJECT rule.
 3. **Decided**: use `icmp-host-prohibited`. Verified empirically against a
    running instance (`partybot`) with a temporary, narrowly-scoped test rule
    (single test IP, added and removed within the same command): both
@@ -101,21 +101,24 @@ Fixing this correctly means changing how `update-firewall.sh` manages rule
    you" outright, but `icmp-host-prohibited` was chosen for consistency with
    the IPv6 rule's naming (`icmp6-adm-prohibited`), since there's no
    behavioral difference between the *-prohibited variants.
-4. Keep `iptables -P OUTPUT DROP` as the policy underneath, same rationale as
-   IPv6: if the REJECT rule is ever removed independently (e.g. mid-cron-run,
-   between the delete and re-append steps above), traffic fails closed, not
-   open.
-5. Verify across *multiple* cron cycles, not just the first one — this is
-   the part most likely to have a subtle bug: confirm the allowlist keeps
-   working correctly after several consecutive 5-minute refreshes, not just
-   immediately after `claudevm up`.
-6. Once implemented, remind whoever's driving this to add the CLAUDE.md
-   section below to the project(s) running inside claudevm sandboxes, so an
-   agent working inside the VM knows how to interpret this failure mode
-   correctly instead of chasing a phantom routing/DNS problem. This is a
-   manual step (there's no mechanism in claudevm today that pushes content
-   into a project's own `CLAUDE.md`), so it needs an explicit call-out at the
-   end of implementation, not just a mention buried in this doc.
+4. **Done**: `iptables -P OUTPUT DROP` (step 3) was left untouched -- still
+   the policy underneath, same rationale as IPv6: if the REJECT rule is ever
+   removed independently (e.g. mid-cron-run, between the delete and
+   re-append steps above), traffic fails closed, not open.
+5. **Done**: verified on a disposable test instance (`test-cv-002`, not
+   `partybot`), not just the first cron cycle:
+   - Rule order right after boot: ipset ACCEPT (position 7) before the
+     catch-all REJECT (position 8) -- correct.
+   - Ran `update-firewall.sh` 3 more times back-to-back (simulating repeated
+     cron cycles): the REJECT rule count stayed exactly 1 after every run
+     (no duplication/pile-up), and the final rule order was still correct.
+   - `github.com` (allowlisted): `200`, 93ms -- allowlist still works after
+     all that churn.
+   - `example.com` (not allowlisted): failed in **27ms** with `Could not
+     connect to server` -- instant, vs. the multi-minute hang this task
+     exists to fix.
+6. **Done**: the CLAUDE.md section below has been added to the project
+   running in the VM.
 
 ## VM agent instructions (add to the project's CLAUDE.md once implemented)
 
@@ -142,10 +145,10 @@ it as a real network/DNS problem:
 
 ## Open questions / risks to resolve during implementation
 
-- Whether the brief delete-then-re-append window for the REJECT rule (every
-  5 minutes) has any observable effect under concurrent traffic — almost
-  certainly negligible given how fast iptables rule changes are, but worth
-  a sanity check rather than assuming.
+- **Resolved**: ran 3 consecutive refreshes back-to-back on a test instance
+  with no issues, dropped connections, or rule duplication observed. Not a
+  high-concurrency stress test, but enough to confirm the basic
+  delete-then-re-append cycle is safe in normal operation.
 - Whether `ip6tables`' existing REJECT-management approach (added once,
   never touched again after boot) should eventually be reconciled with this
   new self-correcting pattern for consistency, or whether it's fine as-is

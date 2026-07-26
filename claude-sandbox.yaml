@@ -33,7 +33,10 @@
 #   4. A refreshed allowlist of domains (read from /mnt/claudevm-config/allowlist.txt,
 #      which the wrapper mounts read-only from the host) resolved to IPs and
 #      added to an ipset, re-checked every 5 minutes via cron since many
-#      services (npm, GitHub, PyPI...) sit behind rotating CDN IPs.
+#      services (npm, GitHub, PyPI...) sit behind rotating CDN IPs. Anything
+#      not in the ipset gets an immediate ICMP "host prohibited" REJECT
+#      (fails in milliseconds, not a multi-minute hang) -- re-appended after
+#      every ipset refresh so it stays ordered after the ACCEPT rule.
 #   5. ~/.gitconfig and ~/.vimrc seeded from the host's copies, if `claudevm
 #      new` found any (one-time only, so later in-VM edits stick).
 #   6. Per-VM secrets (Claude token, GitHub token) wired up from
@@ -200,8 +203,14 @@ provision:
         done
       done < "$ALLOWLIST"
 
+      # Keep the catch-all REJECT last: delete it, ensure the ipset ACCEPT
+      # rule exists, then re-append REJECT -- self-correcting on every run
+      # regardless of prior chain state, so it can never end up ordered
+      # before the ACCEPT rule (which would silently break the allowlist).
+      iptables -D OUTPUT -j REJECT --reject-with icmp-host-prohibited 2>/dev/null || true
       iptables -C OUTPUT -m set --match-set "$SET_NAME" dst -j ACCEPT 2>/dev/null || \
         iptables -A OUTPUT -m set --match-set "$SET_NAME" dst -j ACCEPT
+      iptables -A OUTPUT -j REJECT --reject-with icmp-host-prohibited
       SCRIPT
       chmod +x /usr/local/bin/update-firewall.sh
 
