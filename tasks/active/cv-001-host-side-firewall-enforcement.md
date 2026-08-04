@@ -56,6 +56,23 @@ task is about closing the remaining gap: right now the guest can reach
 *anything on the internet* once it defeats its own firewall, which is a much
 bigger blast radius than "whatever's scoped to that VM."
 
+### Constraint from cv-006: preserve a host-issued pause/resume escape hatch
+
+`cv-006` adds `claudevm firewall pause`/`resume` — a *deliberate,
+host-operator-issued* way to temporarily fully open a VM's egress for
+debugging, distinct from (and not a mitigation for) the guest-side
+self-bypass gap this task exists to close. Whatever host-side enforcement
+mechanism this task lands on must not eliminate that capability outright —
+an operator still needs *some* supported way to temporarily open a VM's
+egress from the host once host-side `pf` enforcement exists too, or
+`cv-006`'s feature becomes silently ineffective (guest-side pause would
+open the guest's own chain, but traffic would still be blocked at the host
+`pf` layer, with no way to also pause that layer). This doesn't dictate the
+mechanism — host-side enforcement could grow its own pause/resume, or
+delegate to the guest-side one if `pf` rules end up scoped to be no more
+restrictive than the guest's own state — just that the capability itself
+must survive this task's implementation.
+
 ## Research findings (from a prior session — verify before relying on any of this)
 
 Lima (which claudevm builds on) supports multiple networking backends. What
