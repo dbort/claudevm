@@ -9,6 +9,15 @@ earlier SwiftUI-native-app version of this doc, superseded by the SwiftBar
 plugin approach below. Nothing in this repo has been changed yet for this
 task.
 
+**Depends on `cv-004`**: during `cv-004`'s own design interview, the
+`claudevm ls` scope change (claudevm-managed-only filtering, synthetic `new`
+status, `--json` mode) originally planned as part of *this* task was moved
+into `cv-004` instead, since `cv-004` needs that same interface for its own
+test coverage and this avoids either task being written/rewritten around
+guessing which lands first. This task now assumes `claudevm ls --json`
+already exists and behaves as described below -- see `cv-004` for its actual
+implementation.
+
 ## Background
 
 Today, starting or stopping a claudevm-managed VM requires a terminal:
@@ -25,14 +34,16 @@ A macOS menubar item that:
   if running) — no terminal needed. Never-booted ("new") instances are
   shown grayed out and are *not* clickable from here.
 
-### Scope change: `claudevm ls` becomes claudevm-managed-only
+### Scope change: `claudevm ls` becomes claudevm-managed-only (implemented by `cv-004`)
 
 `claudevm ls` today is just `limactl list` — **every** Lima instance on the
 machine, claudevm-managed or not (`cmd_ls()` in `claudevm`). Both `claudevm
-ls` and this new menubar tool are being changed to show **only
-claudevm-managed instances** instead — i.e. only names that exist under
-`$INSTANCES_DIR` (`${CLAUDEVM_INSTANCES:-$HOME/.local/var/claudevm/instances}`,
-same default `claudevm` itself already uses).
+ls` and this menubar tool need it changed to show **only claudevm-managed
+instances** instead — i.e. only names that exist under `$INSTANCES_DIR`
+(`${CLAUDEVM_INSTANCES:-$HOME/.local/var/claudevm/instances}`, same default
+`claudevm` itself already uses). **`cv-004` is the task that actually makes
+this change** (see its Status note above for why); this doc keeps the
+rationale here since it's why the menubar tool needs the interface it needs.
 
 This is a deliberate simplification, not just a menubar-specific filter:
 `claudevm up` and `claudevm down` are not symmetric today. `cmd_down()`
@@ -54,23 +65,21 @@ compiling, no Xcode, just a script.
 
 ## Goal
 
-1. Change `claudevm ls` to list only claudevm-managed instances, including
-   a distinct `new` status for ones that have been `claudevm new`'d but
-   never booted.
-2. Add a `claudevm ls --json` mode emitting the same data as structured
-   JSON, as the one and only interface the plugin script talks to for
-   listing -- it must not reimplement `claudevm`'s instance-discovery logic.
-3. Ship a SwiftBar plugin script that lists every claudevm-managed instance
-   (via `claudevm ls --json`) with its status, toggles non-`new` instances
-   on click via `claudevm up`/`claudevm down`, and renders `new` instances
-   grayed out and inert.
-4. A setup helper (separate from the main `install.sh`) that installs
+1. Ship a SwiftBar plugin script that lists every claudevm-managed instance
+   (via `claudevm ls --json`, provided by `cv-004`) with its status, toggles
+   non-`new` instances on click via `claudevm up`/`claudevm down`, and
+   renders `new` instances grayed out and inert.
+2. A setup helper (separate from the main `install.sh`) that installs
    SwiftBar via Homebrew cask if missing, and **copies** (not symlinks) the
    plugin script into SwiftBar's plugins directory, so the plugin keeps
    working even if this repo's clone is later moved or deleted -- matching
    how the main `install.sh` already copies `claude-sandbox.yaml` and
    `claudevm` itself into stable locations rather than referencing the repo
    in place.
+
+(`claudevm ls` gaining claudevm-managed-only filtering, the synthetic `new`
+status, and `--json` output is `cv-004`'s goal, not this task's -- see the
+Status note above.)
 
 ## Research findings
 
@@ -80,14 +89,16 @@ compiling, no Xcode, just a script.
   `"Stopped"` etc.), `dir`, `sshLocalPort`, and more. Measured latency:
   ~15ms across 3 runs -- fast enough that there's no real reason to cache
   or avoid a live re-fetch on every plugin refresh.
-- **How to represent never-booted instances**: rather than passing
-  claudevm-managed names to `limactl list <name>` and finding out what it
-  does for an unbooted name, `cmd_ls` diffs two independently-known-good
-  lists: the claudevm-managed names from `$INSTANCES_DIR/*`, and the full
-  instance list from `limactl list --format json` (no name arguments, so
-  always well-defined). Any claudevm-managed name *not* present in
-  `limactl`'s output gets a synthetic `new` status; anything present gets
-  `limactl`'s real status passed through.
+- **How to represent never-booted instances** (this finding now lives in,
+  and is implemented by, `cv-004` -- kept here as context for why the
+  `--json` contract this task consumes looks the way it does): rather than
+  passing claudevm-managed names to `limactl list <name>` and finding out
+  what it does for an unbooted name, `cmd_ls` diffs two independently-
+  known-good lists: the claudevm-managed names from `$INSTANCES_DIR/*`, and
+  the full instance list from `limactl list --format json` (no name
+  arguments, so always well-defined). Any claudevm-managed name *not*
+  present in `limactl`'s output gets a synthetic `new` status; anything
+  present gets `limactl`'s real status passed through.
 - **Why toggling should go through `claudevm up`/`down`, not raw
   `limactl`**: `claudevm up` does more than `limactl start` -- notably
   `close_ssh_control` (see this project's git log / `cv-002`'s background
@@ -134,21 +145,10 @@ compiling, no Xcode, just a script.
 
 ## Proposed plan
 
-1. **Change `cmd_ls` in `claudevm`** to enumerate instance names from
-   `$INSTANCES_DIR/*`, diff against `limactl list --format json`'s output,
-   and synthesize a `new` status for any claudevm-managed name absent from
-   that output. Keep the default (no flag) output human-readable, matching
-   today's `claudevm ls` habits -- this can no longer be a raw passthrough
-   to `limactl list` for the same reason (synthetic `new` rows have no
-   `limactl`-native formatting to borrow).
-2. **Add `claudevm ls --json`** emitting the same diffed/merged data as
-   structured JSON -- one object per claudevm-managed instance, at minimum
-   `name` and `status` (`new`, `Running`, `Stopped`, etc.). This is the
-   *only* interface the plugin script uses for listing.
-3. **Update `README.md`**'s description of `claudevm ls` (currently "List
-   all Lima VMs (claudevm-managed and otherwise)") to reflect the new,
-   narrower scope and the `--json` mode.
-4. **Write the SwiftBar plugin script** (e.g.
+0. **Prerequisite: `cv-004` lands first**, providing `claudevm ls --json`
+   (claudevm-managed-only filtering, synthetic `new` status). Nothing below
+   can be meaningfully implemented before that exists.
+1. **Write the SwiftBar plugin script** (e.g.
    `menubar/claudevm-status.60s.sh` in this repo): parses `claudevm ls
    --json`, renders one menu line per instance (name plus project dir as a
    subtitle, for disambiguating similarly-named instances across setups),
@@ -159,14 +159,14 @@ compiling, no Xcode, just a script.
    Menubar title/glyph: plain text or an emoji (SwiftBar plugins set this
    via their own stdout, no compiled icon asset needed) -- exact glyph is a
    cosmetic detail to pick during implementation, not a design decision.
-5. **Write a menubar setup helper** (e.g. `menubar/install.sh`, separate
+2. **Write a menubar setup helper** (e.g. `menubar/install.sh`, separate
    from the main `install.sh`): offers to `brew install --cask swiftbar` if
    missing, then **copies** (not symlinks) the plugin script into SwiftBar's
    plugins directory. Note the same tradeoff this creates as the main
    installer already has: future edits to the plugin script in this repo
    require re-running this helper to take effect, they don't propagate
    automatically.
-6. **Surface failures inline** on the row itself (e.g. an "Error" state) on
+3. **Surface failures inline** on the row itself (e.g. an "Error" state) on
    the plugin's next render -- decided against a native macOS notification,
    which would need extra permission prompts and more implementation effort
    for a lightweight utility.
@@ -193,3 +193,6 @@ compiling, no Xcode, just a script.
   (IPv4 REJECT) -- purely a new, independent control-surface convenience
   layered on top of the existing `claudevm`/`limactl` commands, not a
   change to how any VM's networking or provisioning behaves.
+- Not implementing `claudevm ls`'s scope change or `--json` mode -- that's
+  `cv-004`'s job (moved there during `cv-004`'s design interview); this task
+  only consumes that interface once it exists.
