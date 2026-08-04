@@ -233,13 +233,25 @@ defense-in-depth.
   or added an anchor reference first (see the "important pf subtlety"
   note above) — this could be a hard blocker or just an extra one-time
   setup step; unknown until researched.
-- Whether `vzNAT` provides the guest any IPv6 connectivity at all.
-  `claude-sandbox.yaml` currently blocks all guest IPv6 egress outright
-  since there's no allowlist mechanism for it; confirm this assumption
-  still holds under `vzNAT` (if `vzNAT` doesn't route IPv6 to the guest at
-  all, the existing guest-side IPv6 block may become redundant but
-  harmless; if it does, the host-side design needs to account for IPv6
-  too).
+- **Partially resolved**: under the *default* networking backend
+  (`gvisor-tap-vsock`, unconfigured — not `vzNAT`), the guest gets **no real
+  IPv6 connectivity at all**, confirmed empirically against a live instance
+  (`deploy-pb`) while debugging an unrelated `cv-006` pause/resume test: `ip
+  -6 addr show` on `eth0` shows only a link-local address (`fe80::.../64`),
+  and `ip -6 route show` has no `default via ...` route — only on-link
+  link-local routes. A blocked IPv6 attempt fails with `ENETUNREACH`
+  ("Network unreachable") at the kernel routing layer, before packets ever
+  reach `ip6tables` — confirmed by checking `claudevm firewall status
+  deploy-pb` and seeing the IPv6 `OUTPUT` policy already `ACCEPT` (paused)
+  at the time, so the block wasn't coming from the firewall at all. This
+  means `claude-sandbox.yaml`'s `ip6tables` lockdown is currently inert
+  defense-in-depth under the default backend — not actively restricting
+  anything, since nothing gets through regardless of its rules. **Still
+  open**: whether `vzNAT` specifically (this task's proposed backend for
+  host-visible guest IPs) behaves the same way or actually routes IPv6 —
+  this finding only covers the default backend, not `vzNAT`; the original
+  open question stands for that mode and needs its own empirical check
+  once a `vzNAT` instance exists (test step 1 above).
 - Whether this should ship as the new default behavior, or as an opt-in
   (e.g. an env var or `claudevm new` flag) until it's proven reliable
   across a range of setups. Given this introduces a new host-side `sudo`

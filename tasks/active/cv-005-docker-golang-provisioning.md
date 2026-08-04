@@ -170,12 +170,26 @@ one significant gap this creates in the network sandbox.
    domain -- Docker would install successfully but be functionally useless
    until these are allowlisted, so they're part of the default set, not left
    for users to add per-project.
-10. **VM resource defaults (4 CPU / 4 GiB / 60 GB) stay as-is.** The
+10. **Disable IPv6 in the Docker daemon config**
+    (`/etc/docker/daemon.json` → `{"ipv6": false}`, written before
+    `systemctl enable --now docker`). This is a Docker-daemon-level
+    setting, not anything about a given image/compose file -- it affects
+    every container this VM's Docker ever runs, regardless of what they
+    are. Confirmed necessary and sufficient by a manual fix applied
+    directly to a live project VM (`deploy-pb`, Docker installed ad hoc
+    ahead of this task landing): without it, containers get handed an IPv6
+    address that can never actually route anywhere under this project's
+    current networking backend (`gvisor-tap-vsock` -- the VM itself has
+    only a link-local IPv6 address and no default route, confirmed in
+    `cv-001`'s research findings), causing avoidable `Network unreachable`
+    failures before falling back to IPv4. Applying `{"ipv6": false}` and
+    restarting Docker on `deploy-pb` verified the fix directly.
+11. **VM resource defaults (4 CPU / 4 GiB / 60 GB) stay as-is.** The
     existing `CLAUDEVM_CPUS`/`CLAUDEVM_MEMORY`/`CLAUDEVM_DISK` override
     mechanism already covers projects that need more room; bumping the
     global default would raise the cost for every project, including ones
     that never touch Docker or Go.
-11. **Verification bar before marking this "Done"**: automated integration
+12. **Verification bar before marking this "Done"**: automated integration
     tests written against `cv-004`'s pytest integration-tier infrastructure
     (the session-scoped, `claudevm-test-*`-namespaced real-VM fixtures), run
     through `cv-004`'s `./test.sh` entry point (`./test.sh integration`, or
@@ -214,6 +228,9 @@ one significant gap this creates in the network sandbox.
    allowlist ipset being warm yet:
    - `apt-get install -y docker.io docker-compose-v2`.
    - `usermod -aG docker <default user>`.
+   - Write `/etc/docker/daemon.json` with `{"ipv6": false}` (decision #10),
+     before Docker is started -- avoids a redundant restart just to pick up
+     a setting that could've been in place from the daemon's first start.
    - Fetch the pinned Go tarball (URL + sha256 checksum verified against
      `go.dev/dl` at implementation time), extract to `/usr/local/go`, guarded
      by a version check so a routine reboot doesn't re-download.
@@ -240,7 +257,7 @@ one significant gap this creates in the network sandbox.
    explicit timeouts) rather than a one-off manual script: boot a fresh
    instance from the updated template, confirm clean provisioning, then
    confirm `docker run`, `docker compose up`, and `go build`/`go
-   test`/`go mod download` all work as described in decision #11. These
+   test`/`go mod download` all work as described in decision #12. These
    tests must run cleanly via `./test.sh integration` (or a bare
    `./test.sh`) -- if `./test.sh` can't pick them up automatically the same
    way it picks up `cv-004`'s own tests, that's a bug to fix before this
@@ -250,7 +267,7 @@ one significant gap this creates in the network sandbox.
    real fresh VM (first `claudevm up`, which now includes the Go tarball
    download and Docker's apt install) -- no specific budget was set for
    this, but worth a sanity check that it doesn't become unreasonably slow,
-   given the resource-sizing defaults are staying unchanged (decision #10).
+   given the resource-sizing defaults are staying unchanged (decision #11).
 
 ## Open questions / risks to resolve during implementation
 
@@ -299,8 +316,15 @@ one significant gap this creates in the network sandbox.
   network gap -- decided the README's Limitations section is the right
   place for this (decision #2).
 - Not bumping default VM resource sizing -- existing env var overrides are
-  considered sufficient (decision #10).
+  considered sufficient (decision #11).
 - Not wiring CI, and not testing `claudevm`'s own CLI wrapper commands --
   that's `cv-004`'s scope, not this task's.
 - Not related to `cv-003` (menubar control) -- independent, no interaction
   between the two.
+- A separate task (`cv-007`) was briefly opened to address "VMs don't have
+  real IPv6 connectivity" as a general VM/kernel-level concern, decoupled
+  from Docker. It was folded back into this task (decision #10) once the
+  concrete problem turned out to be entirely Docker-daemon-scoped -- no
+  evidence of a non-container process on the VM hitting the same issue, so
+  there was nothing left for a broader VM-wide fix to cover. `cv-007` was
+  deleted rather than kept as an empty placeholder.
