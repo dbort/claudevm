@@ -130,13 +130,37 @@ one significant gap this creates in the network sandbox.
    install script should check the pinned version against what's already
    present before re-fetching, so a normal reboot doesn't re-download
    anything.
-8. **PATH additions go in `/etc/environment`**, not `~/.bashrc`/`~/.profile`
-   -- reusing the exact precedent and rationale already in this file's
-   secrets-provisioning step: VS Code's Remote-SSH extension host is a
-   non-interactive background process that never sources `~/.bashrc`, so
-   anything only added there silently wouldn't apply for one of claudevm's
-   two primary usage modes. Adds `/usr/local/go/bin` (and Go's default
-   `GOBIN`/module-cache location under `~/go/bin`) to `PATH`.
+8. **PATH needs three parts, not just `/etc/environment`** -- discovered by
+   manually running this task's install steps against a real VM ahead of
+   implementation, using the same `/etc/environment`-only approach this
+   decision originally specified: it left `go`/`gofmt` reachable for VS
+   Code Remote-SSH but **absent from `PATH` in a plain interactive SSH
+   session**, even after a fresh login. Root cause: Ubuntu's `/etc/profile`
+   unconditionally reassigns `PATH="/usr/local/sbin:/usr/local/bin:..."` for
+   non-root interactive shells, which runs *after* PAM applies
+   `/etc/environment` at login and clobbers it completely -- a known
+   Debian/Ubuntu gotcha, not specific to this project. `/etc/environment`
+   itself wasn't wrong (PAM does apply it, and it's still the only thing
+   that reaches VS Code Remote-SSH's non-interactive session, which never
+   sources `/etc/profile` at all), it's just insufficient alone for
+   interactive shells. Fixed with three complementary pieces, none of which
+   replaces `/etc/environment`:
+   - **Keep `/etc/environment`** with `/usr/local/go/bin` and `~/go/bin`
+     appended to `PATH`, exactly as before -- still required for VS Code
+     Remote-SSH.
+   - **Symlink `/usr/local/go/bin/go` and `gofmt` into `/usr/local/bin`**,
+     which is already on `PATH` in every context (interactive shells,
+     non-interactive SSH, sudo) and isn't touched by `/etc/profile`'s
+     reassignment since it's already part of what that reassignment sets.
+     Covers the two Go binaries themselves regardless of which PATH
+     mechanism is in effect.
+   - **Add `/etc/profile.d/99-go-gobin.sh`** appending `$HOME/go/bin` to
+     `PATH`. `/etc/profile.d/*.sh` scripts run at the *end* of
+     `/etc/profile`, after its own unconditional `PATH=` assignment, so an
+     append here survives where an `/etc/environment` entry alone didn't.
+     Needed because `$HOME/go/bin` (where `go install` puts binaries) is a
+     directory of binaries that changes over time, so it can't be handled
+     with a fixed set of symlinks the way `go`/`gofmt` themselves can.
 9. **Add Docker Hub domains to `default-allowlist.txt`**:
    `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com`
    (the actual CDN image layers are served from, not `docker.io` itself).
@@ -167,6 +191,11 @@ one significant gap this creates in the network sandbox.
       a real image/compose file.
     - `go build`/`go test`/`go mod download` actually work end to end,
       including fetching a real dependency through the module proxy.
+    - `go` and `gofmt` are on `PATH` in a **plain interactive SSH session**
+      specifically (not just checked via their absolute
+      `/usr/local/go/bin` path) -- the regression check for decision #8's
+      `/etc/profile`-clobbering bug, found by manual testing before this
+      task had any automated coverage at all.
     - Explicitly **not** required: empirically reproducing the `FORWARD`-chain
       gap (i.e., proving a container can reach a non-allowlisted domain).
       The gap is accepted as a known, understood Linux/iptables behavior
@@ -183,13 +212,17 @@ one significant gap this creates in the network sandbox.
    populated (step 4), since installation itself only needs Ubuntu's mirrors
    (already reachable pre-lockdown) and shouldn't have any dependency on the
    allowlist ipset being warm yet:
-   - `apt-get install -y docker.io <compose-plugin-package>`.
+   - `apt-get install -y docker.io docker-compose-v2`.
    - `usermod -aG docker <default user>`.
    - Fetch the pinned Go tarball (URL + sha256 checksum verified against
      `go.dev/dl` at implementation time), extract to `/usr/local/go`, guarded
      by a version check so a routine reboot doesn't re-download.
-   - Append `/usr/local/go/bin` (and `~/go/bin`) to `PATH` via
-     `/etc/environment`, following the existing precedent exactly.
+   - PATH, per decision #8's three-part fix: append `/usr/local/go/bin` and
+     `~/go/bin` to `PATH` via `/etc/environment` (for VS Code Remote-SSH);
+     symlink `/usr/local/go/bin/{go,gofmt}` into `/usr/local/bin` (for
+     interactive shells and everything else); drop
+     `/etc/profile.d/99-go-gobin.sh` appending `~/go/bin` to `PATH` (also
+     for interactive shells, covering future `go install`ed binaries).
    - `systemctl enable --now docker`.
 3. **Add the three Docker Hub domains to `default-allowlist.txt`**, under a
    new `# Docker Hub` comment section matching the file's existing
@@ -221,11 +254,30 @@ one significant gap this creates in the network sandbox.
 
 ## Open questions / risks to resolve during implementation
 
-- Exact compose-plugin package name and its availability in Ubuntu 26.04's
-  repos (decision #4) -- verify directly against the real image, not
-  assumed from an older Ubuntu release.
-- Exact Go version, tarball URL, and sha256 checksum to pin (decision #7) --
-  fetch and verify from `go.dev/dl` at implementation time.
+- **Resolved**: `docker-compose-v2` is a real, installable package for
+  Ubuntu 26.04 ("resolute") -- confirmed directly against
+  `packages.ubuntu.com/resolute/docker-compose-v2` (200 response), not
+  assumed from an older release.
+- **Resolved**: pinned Go version is `1.26.5`, verified live against
+  `go.dev/dl/?mode=json` (not the summarized HTML page, to avoid
+  transcription error in a checksum that's about to gate a `sha256sum -c`
+  check): `go1.26.5.linux-amd64.tar.gz` /
+  `5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053`,
+  `go1.26.5.linux-arm64.tar.gz` /
+  `fe4789e92b1f33358680864bbe8704289e7bb5fc207d80623c308935bd696d49`. Since
+  this is a *pinned* version (decision #7), these values go directly into
+  the provisioning script rather than being re-fetched at boot -- re-verify
+  and bump deliberately when this gets stale, same as the Ubuntu image
+  digests.
+- **Resolved**: the `/etc/environment`-only PATH approach was insufficient
+  for interactive shells -- see decision #8's rewrite for the root cause
+  (`/etc/profile` clobbering) and the three-part fix. This was found by
+  manually running the install steps against a real VM before
+  implementation, exactly the kind of "real behavior diverges from
+  assumption" bug `cv-004`'s Background section calls out as the norm for
+  this project -- worth an explicit integration test asserting `go` is
+  actually on `PATH` in a fresh, plain interactive SSH session (not just
+  reachable via absolute path), so this doesn't silently regress.
 - Whether Docker's own `docker.io` postinst already handles
   `net.ipv4.ip_forward=1` and its own iptables/NAT setup cleanly on top of
   this project's existing from-scratch `iptables -F OUTPUT` step, or whether
