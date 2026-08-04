@@ -2,8 +2,21 @@
 
 ## Status
 
-Not started. Written up as a plan doc after a design interview (`/grill-me`);
-nothing in this repo has been changed yet for this task.
+Done. All 13 plan steps implemented and verified against real VMs: 46 tests
+total (36 unit + 10 integration), full integration run ~3 minutes
+wall-clock, zero leaked VMs afterward.
+
+The follow-up `/grill-me` pass on integration-tier isolation (decisions
+#13-20, plan step 13) is also implemented and re-verified: `LIMA_HOME`
+isolates Lima's own VM state from the real `~/.lima`, `CLAUDEVM_DOTFILES_SOURCE`
+isolates `cmd_new`'s dotfile seeding, and the `close_ssh_control` bug is
+fixed. Along the way, two more real bugs surfaced and were fixed: a
+too-deep default temp path produced Unix socket paths over macOS's 104-char
+limit, and `fresh_instance`/`shared_instance` only tracked a VM for cleanup
+after `up` succeeded (so a failed `up` could leak a real VM -- confirmed by
+the socket-path bug actually leaking one before the tracking fix landed). A
+manually verified check confirmed dummy dotfile content gets seeded instead
+of the real `~/.gitconfig`/`~/.vimrc`.
 
 ## Background
 
@@ -158,6 +171,76 @@ that change itself.
       making iterative single-test development painful. Mirrors `cmd_ssh`'s
       own just-added trailing-arg-forwarding pattern (decision #9).
 
+### Follow-up interview: integration-tier `$HOME` isolation
+
+Prompted by a code-review question about a docstring claim ("unit tests
+never touch real `~/.config/claudevm`") that turned out to be true for unit
+tests but incomplete as a description of the *integration* tier's isolation
+guarantees. A second `/grill-me` pass resolved the following:
+
+13. **Decision #8's namespacing (`claudevm-test-*` names) was originally
+    treated as the isolation story for the integration tier; it isn't
+    enough on its own.** Auditing every real `$HOME` reference in `claudevm`
+    turned up two more real dependencies beyond what namespacing covers:
+    `cmd_new`'s read of `~/.gitconfig`/`~/.vimrc`, and Lima's own real
+    `~/.lima` VM-state directory (implicitly used by every `limactl` call,
+    regardless of instance naming).
+14. **pytest's `tmp_path`/`tmp_path_factory` (the OS system temp dir) counts
+    as "inside the sandbox."** The property being protected is never
+    touching/depending on/mutating the real user's persistent state, not
+    literal containment inside the repo directory -- no change needed to
+    the existing fixture pattern for this reason.
+15. **Lima's own VM/instance state is isolated via `LIMA_HOME`** (a real,
+    native Lima env var -- confirmed via `limactl info` and an empirical
+    probe boot), not by touching `$HOME` itself. Set once per test session,
+    applied uniformly to every integration-tier `claudevm` invocation -- no
+    per-call opt-in/flag, since it's always safe to set. This makes
+    collision with real instances (`deploy-pb`, `partybot`) structurally
+    impossible rather than merely unlikely-by-naming-convention; decision
+    #8's namespacing remains as defense-in-depth, not the sole safeguard.
+    Confirmed empirically that overriding `LIMA_HOME` does **not** force
+    Lima to re-download its cached base VM image -- a probe VM boot with an
+    isolated, empty `LIMA_HOME` completed in 36s reusing the existing image
+    cache, which is keyed independently off the real `$HOME`.
+16. **Bug found along the way, fixed as part of this work**:
+    `close_ssh_control` in `claudevm` hardcoded `$HOME/.lima/$name/ssh.config`,
+    ignoring `LIMA_HOME` entirely -- wrong for any real user who sets
+    `LIMA_HOME` themselves, not just a test-isolation gap. Fixed to derive
+    `lima_home="${LIMA_HOME:-$HOME/.lima}"` first (confirmed via `limactl
+    info`'s reported `limaHome` field that `LIMA_HOME`, when set, *replaces*
+    `$HOME/.lima` outright rather than needing an additional `.lima/`
+    segment appended).
+17. **New `CLAUDEVM_DOTFILES_SOURCE` env var** (defaults to `$HOME`,
+    mirroring the existing `CLAUDEVM_HOME`/`CLAUDEVM_INSTANCES` pattern)
+    added so `cmd_new`'s dotfile-seeding read can be isolated in tests
+    without touching real usage at all (unset in production -- zero
+    behavior change for real users). Tests point it at a session-scoped
+    fixture directory seeded with dummy, obviously-test-marked content
+    (distinct from the unit tier's own dummy dotfiles, so it's unambiguous
+    which tier produced something if it ever surfaces in debug output) --
+    seeded rather than left empty, so the seeding *behavior* is still
+    genuinely exercised end-to-end at the integration tier.
+18. **`CLAUDEVM_HOME`/`CLAUDEVM_INSTANCES` were re-confirmed, not
+    re-designed**, to already be fully isolated in both tiers -- an
+    unconditional override on every `run_claudevm`/`run_real_claudevm` call,
+    with no fallback branch that could leak to the real defaults. Verified
+    directly against the fixture code during this interview, at the user's
+    request, rather than taken on faith from an earlier summary.
+19. **No new regression assertion added** for the dotfiles-isolation fix
+    itself -- the seed-vs-skip *logic* is already fully covered by the unit
+    tier (`test_new_seeds_dotfiles_when_present`/
+    `test_new_skips_dotfiles_when_absent`); this fix is about the
+    integration tier no longer depending on real files, not about re-proving
+    logic that's already tested elsewhere.
+20. **Superseded alternatives, kept for the record**: a per-call
+    `real_home=True` boolean toggling *all* of `$HOME` (rejected -- roughly
+    25 call sites would each need the flag, and it doesn't compose with
+    keeping Lima's image-download cache warm); leaving Lima on the real
+    `$HOME` entirely and adding only a new claudevm-level dotfiles variable
+    (rejected in favor of the stronger `LIMA_HOME`-based isolation, once it
+    was established that achieves full isolation without any extra
+    per-call-site cost).
+
 ## Proposed plan
 
 1. **Change `cmd_ls` in `claudevm`** (moved here from `cv-003`) to enumerate
@@ -225,6 +308,15 @@ that change itself.
     `./test.sh integration`, `./test.sh unit -- -k test_foo`) in a
     `tests/README.md` or a section of the main `README.md` -- no raw
     `pytest` invocations in any of it.
+13. **Isolate the integration tier's remaining `$HOME` dependencies**
+    (decisions #13-20): add `CLAUDEVM_DOTFILES_SOURCE` to `claudevm`
+    (defaults to `$HOME`) and switch `cmd_new`'s dotfile read to use it; fix
+    `close_ssh_control` to derive `lima_home="${LIMA_HOME:-$HOME/.lima}"`
+    instead of hardcoding `$HOME/.lima`; add session-scoped fixtures
+    isolating `LIMA_HOME` and `CLAUDEVM_DOTFILES_SOURCE`, applied uniformly
+    on every `run_real_claudevm` call; re-verify the full integration suite
+    against real VMs afterward, confirming test VMs no longer appear under
+    the real `~/.lima` at all.
 
 ## Open questions / risks to resolve during implementation
 
