@@ -23,6 +23,9 @@ CLAUDEVM_HOME="${CLAUDEVM_HOME:-$HOME/.config/claudevm}"
 TEMPLATE="$CLAUDEVM_HOME/claude-sandbox.yaml"
 DEFAULT_ALLOWLIST="$CLAUDEVM_HOME/default-allowlist.txt"
 INSTANCES_DIR="${CLAUDEVM_INSTANCES:-$HOME/.local/var/claudevm/instances}"
+# Source of ~/.gitconfig/~/.vimrc seeding in cmd_new -- normally your real
+# home, but overridable (e.g. in tests) without affecting anything else.
+DOTFILES_SOURCE="${CLAUDEVM_DOTFILES_SOURCE:-$HOME}"
 
 CPUS="${CLAUDEVM_CPUS:-4}"
 MEMORY="${CLAUDEVM_MEMORY:-4}"   # GiB
@@ -38,10 +41,10 @@ Usage: claudevm <command> [args]
   up <name>                   Boot (or resume) the sandbox VM
   down <name>                 Stop the VM (disk state is kept)
   rm <name>                   Stop, delete the VM, and delete its config
-  ssh <name>                  Shell into the VM
+  ssh <name> [-- cmd]         Shell into the VM, or run cmd non-interactively
   code <name>                 Open VS Code (Remote-SSH) into /workspace on the VM
   refresh <name>               Re-run the firewall/allowlist refresh immediately
-  ls                           List all Lima VMs (claudevm-managed and otherwise)
+  ls [--json]                  List claudevm-managed instances and their status
 EOF
 }
 
@@ -64,7 +67,10 @@ close_ssh_control() {
   # after `up` finishes (provisioning is done by then), so the next
   # connection is guaranteed fresh instead of reusing the early one.
   local name="$1"
-  local ssh_cfg="$HOME/.lima/$name/ssh.config"
+  # LIMA_HOME, when set, replaces $HOME/.lima outright rather than nesting
+  # under it (confirmed via `limactl info`'s reported limaHome).
+  local lima_home="${LIMA_HOME:-$HOME/.lima}"
+  local ssh_cfg="$lima_home/$name/ssh.config"
   if [ -f "$ssh_cfg" ]; then
     ssh -O exit -F "$ssh_cfg" "lima-$name" >/dev/null 2>&1 || true
   fi
@@ -82,11 +88,11 @@ cmd_new() {
   cp "$DEFAULT_ALLOWLIST" "$cfg_dir/allowlist.txt"
   echo "$project_dir" > "$cfg_dir/project-dir"
 
-  if [ -f "$HOME/.gitconfig" ]; then
-    cp "$HOME/.gitconfig" "$cfg_dir/gitconfig"
+  if [ -f "$DOTFILES_SOURCE/.gitconfig" ]; then
+    cp "$DOTFILES_SOURCE/.gitconfig" "$cfg_dir/gitconfig"
   fi
-  if [ -f "$HOME/.vimrc" ]; then
-    cp "$HOME/.vimrc" "$cfg_dir/vimrc"
+  if [ -f "$DOTFILES_SOURCE/.vimrc" ]; then
+    cp "$DOTFILES_SOURCE/.vimrc" "$cfg_dir/vimrc"
   fi
 
   echo "Created sandbox config: $name"
@@ -173,7 +179,12 @@ cmd_rm() {
 
 cmd_ssh() {
   local name="${1:?instance name required}"
-  limactl shell --workdir /workspace "$name"
+  shift
+  # With no trailing args this is unchanged (interactive shell). With a
+  # trailing `-- cmd`, it's forwarded straight to limactl shell, which
+  # already treats `--` as "run this non-interactively instead" -- no
+  # separate parsing needed here.
+  limactl shell --workdir /workspace "$name" "$@"
 }
 
 cmd_code() {
@@ -199,7 +210,54 @@ cmd_allow() {
 }
 
 cmd_ls() {
-  limactl list
+  local want_json=0
+  if [ "${1:-}" = "--json" ]; then
+    want_json=1
+  fi
+
+  # limactl list --format json emits one JSON object per line (NDJSON), not
+  # a JSON array -- jq -s slurps it into one for lookups below.
+  local limactl_json
+  limactl_json="$(limactl list --format json 2>/dev/null | jq -s '.' 2>/dev/null)"
+  if [ -z "$limactl_json" ] || [ "$limactl_json" = "null" ]; then
+    limactl_json="[]"
+  fi
+
+  # Only claudevm-managed instances (those with a $INSTANCES_DIR config),
+  # not every Lima VM on the machine. A name with no matching limactl entry
+  # has been `claudevm new`'d but never booted -- synthesize "new" rather
+  # than querying limactl for a name it's never heard of.
+  local entries
+  entries="$(
+    for cfg_dir in "$INSTANCES_DIR"/*/; do
+      [ -d "$cfg_dir" ] || continue
+      local name dir status
+      name="$(basename "$cfg_dir")"
+      dir="$(cat "$cfg_dir/project-dir" 2>/dev/null)"
+      status="$(echo "$limactl_json" | jq -r --arg name "$name" '.[] | select(.name == $name) | .status' 2>/dev/null)"
+      if [ -z "$status" ]; then
+        status="new"
+      fi
+      jq -n --arg name "$name" --arg status "$status" --arg dir "$dir" \
+        '{name: $name, status: $status, projectDir: $dir}'
+    done | jq -s '.'
+  )"
+
+  if [ "$want_json" -eq 1 ]; then
+    echo "$entries"
+    return
+  fi
+
+  if [ "$(echo "$entries" | jq 'length')" -eq 0 ]; then
+    echo "No claudevm instances found. Run: claudevm new <name> <project-dir>"
+    return
+  fi
+
+  printf "%-24s %-10s %s\n" "NAME" "STATUS" "PROJECT DIR"
+  echo "$entries" | jq -r '.[] | [.name, .status, .projectDir] | @tsv' | \
+    while IFS=$'\t' read -r name status dir; do
+      printf "%-24s %-10s %s\n" "$name" "$status" "$dir"
+    done
 }
 
 cmd_secrets() {

@@ -46,10 +46,10 @@ claudevm code myproject                     # open VS Code (Remote-SSH) into it
 | `claudevm up <name>` | Boot (or resume) the VM, mounting the project at `/workspace`. |
 | `claudevm down <name>` | Stop the VM. Disk state is kept. |
 | `claudevm rm <name>` | Stop, delete the VM, and delete its config. Asks for confirmation. |
-| `claudevm ssh <name>` | Shell into the VM. |
+| `claudevm ssh <name> [-- cmd]` | Shell into the VM. With a trailing `-- cmd`, runs `cmd` non-interactively instead. |
 | `claudevm code <name>` | Open VS Code (Remote-SSH) at `/workspace` on the VM. |
 | `claudevm refresh <name>` | Re-run the firewall/allowlist refresh immediately, instead of waiting for cron. |
-| `claudevm ls` | List all Lima VMs. |
+| `claudevm ls [--json]` | List claudevm-managed instances and their status (`Running`, `Stopped`, or `new` for one that's never been booted). `--json` for structured output. |
 
 Resource sizing (defaults: 4 CPUs, 4 GiB memory, 60 GB disk) can be overridden with `CLAUDEVM_CPUS`, `CLAUDEVM_MEMORY`, `CLAUDEVM_DISK` environment variables before `claudevm up`.
 
@@ -85,8 +85,23 @@ default-allowlist.txt       Starting domain allowlist
 claudevm                    CLI wrapper
 install.sh                  One-shot setup script
 pre-push-branch-guard.sh    Optional git hook for protected branches
+test.sh                     Test entry point (see Testing below)
+tests/                      pytest suite (unit + integration tiers)
 README.md                   This file
 ```
+
+## Testing
+
+```bash
+./test.sh              # everything: unit + integration
+./test.sh unit          # fast tier -- mocks limactl/code, no real VMs, seconds
+./test.sh integration   # slow tier -- boots real, namespaced claudevm-test-* VMs
+./test.sh unit -- -k test_new   # forward extra args straight to pytest
+```
+
+`test.sh` manages its own virtualenv under `.venv/` (created and kept up to date automatically) — there's no separate setup step, and no need to invoke `pytest` directly.
+
+The unit tier fakes `limactl`/`code` and isolates `$HOME`/config dirs, so it never touches your real instances or credentials. The integration tier drives the real `claudevm` script against real Lima VMs, but only ever creates/deletes instances named `claudevm-test-*`, cleaning them up even on failure — it never touches your actual project VMs. It's slower (VM boot time) and local-only; it never runs in CI.
 
 ## Limitations
 

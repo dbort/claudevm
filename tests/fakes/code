@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+"""Minimal fake `code` (VS Code CLI). Records its invocation; never launches
+anything real -- claudevm's cmd_code just needs `code` to exist on PATH and
+be called with the right arguments.
+
+Controlled via env var:
+  FAKE_CODE_LOG -- path to a JSONL file. Every invocation is appended as
+                   {"args": [...]}.
+"""
+import json
+import os
+import sys
+
+
+def main(argv):
+    log_path = os.environ.get("FAKE_CODE_LOG")
+    if log_path:
+        with open(log_path, "a") as f:
+            f.write(json.dumps({"args": argv}) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

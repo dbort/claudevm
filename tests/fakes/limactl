@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""Minimal fake `limactl`, purpose-built for exactly what claudevm invokes
+(list -q, list --format json, start, stop, delete, shell) -- not a
+general-purpose Lima simulator. See cv-004's plan doc for why.
+
+Controlled via env vars:
+  FAKE_LIMACTL_STATE  -- path to a JSON file: {"instances": {name: status}}.
+                         Created empty by the conftest fixture; this script
+                         reads and updates it to simulate state transitions.
+  FAKE_LIMACTL_LOG     -- path to a JSONL file. Every invocation is appended
+                          as {"args": [...]}, so tests can assert exactly
+                          what claudevm called this with.
+"""
+import json
+import os
+import sys
+
+
+def _state_path():
+    return os.environ["FAKE_LIMACTL_STATE"]
+
+
+def _load_state():
+    with open(_state_path()) as f:
+        return json.load(f)
+
+
+def _save_state(state):
+    with open(_state_path(), "w") as f:
+        json.dump(state, f)
+
+
+def _log(args):
+    log_path = os.environ.get("FAKE_LIMACTL_LOG")
+    if not log_path:
+        return
+    with open(log_path, "a") as f:
+        f.write(json.dumps({"args": args}) + "\n")
+
+
+def _positional(args):
+    return [a for a in args if not a.startswith("-")]
+
+
+def cmd_list(rest):
+    state = _load_state()
+    instances = state.get("instances", {})
+    as_json = "--format" in rest and "json" in rest
+    quiet = "-q" in rest
+    if as_json:
+        for name, status in instances.items():
+            print(json.dumps({"name": name, "status": status}))
+    elif quiet:
+        for name in instances:
+            print(name)
+    else:
+        for name, status in instances.items():
+            print(f"{name}\t{status}")
+    return 0
+
+
+def cmd_start(rest):
+    name = None
+    for a in rest:
+        if a.startswith("--name="):
+            name = a.split("=", 1)[1]
+    if name is None:
+        positional = _positional(rest)
+        if positional:
+            name = positional[-1]
+    if name is None:
+        print("limactl: start requires a name", file=sys.stderr)
+        return 1
+    state = _load_state()
+    state.setdefault("instances", {})[name] = "Running"
+    _save_state(state)
+    return 0
+
+
+def cmd_stop(rest):
+    positional = _positional(rest)
+    if not positional:
+        print("limactl: stop requires a name", file=sys.stderr)
+        return 1
+    name = positional[0]
+    state = _load_state()
+    instances = state.get("instances", {})
+    if name not in instances:
+        print(f'limactl: instance "{name}" not found', file=sys.stderr)
+        return 1
+    instances[name] = "Stopped"
+    _save_state(state)
+    return 0
+
+
+def cmd_delete(rest):
+    positional = _positional(rest)
+    if not positional:
+        print("limactl: delete requires a name", file=sys.stderr)
+        return 1
+    name = positional[0]
+    state = _load_state()
+    instances = state.get("instances", {})
+    if name not in instances:
+        print(f'limactl: instance "{name}" not found', file=sys.stderr)
+        return 1
+    del instances[name]
+    _save_state(state)
+    return 0
+
+
+def cmd_shell(rest):
+    # claudevm never inspects shell's stdout/exit code beyond pass-through,
+    # so recording the invocation (done in main() for every command) is
+    # enough -- nothing else to simulate.
+    return 0
+
+
+DISPATCH = {
+    "list": cmd_list,
+    "start": cmd_start,
+    "stop": cmd_stop,
+    "delete": cmd_delete,
+    "shell": cmd_shell,
+}
+
+
+def main(argv):
+    _log(argv)
+    if not argv:
+        print("usage: limactl <command>", file=sys.stderr)
+        return 1
+    cmd, rest = argv[0], argv[1:]
+    handler = DISPATCH.get(cmd)
+    if handler is None:
+        print(f"limactl: unrecognized command {cmd!r}", file=sys.stderr)
+        return 1
+    return handler(rest)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
