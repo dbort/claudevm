@@ -272,8 +272,8 @@ def real_code_calls(real_claudevm_home):
 def shared_instance(run_real_claudevm, tmp_path_factory):
     """(name, project_dir), a single real VM created and booted once for
     the whole test session, reused by most integration tests (ssh,
-    secrets, ls, down/up resume) that don't specifically need a
-    fresh instance. Torn down once at the end of the session."""
+    secrets, ls, down/up resume) that don't need a fresh instance. Torn
+    down once at the end of the session."""
     name = _test_instance_name()
     project_dir = tmp_path_factory.mktemp("shared-instance-project")
 

@@ -1,6 +1,6 @@
 # claudevm
 
-Per-project, isolated Linux VMs for running Claude Code sessions on Apple Silicon Macs — built on [Lima](https://lima-vm.io), with simple per-VM credential handling baked in.
+Per-project, isolated Linux VMs for running Claude Code sessions on Apple Silicon Macs, built on [Lima](https://lima-vm.io), with simple per-VM credential handling baked in.
 
 Each project gets its own real virtual machine (its own kernel, not just a container namespace), mounted into VS Code over SSH. A VM sees only its project directory and its own scoped credentials: none of your host credentials, and not your home directory.
 
@@ -24,7 +24,7 @@ cd claudevm-kit
 
 This installs Lima (via Homebrew, if not already present), copies the VM template to `~/.config/claudevm/`, installs the `claudevm` command onto your `PATH`, and adds an `Include` line to `~/.ssh/config` so VS Code's Remote-SSH extension can see Lima-managed hosts.
 
-Safe to re-run — it refreshes the shared template files but never touches your per-project VMs or their secrets.
+Safe to re-run: it refreshes the shared template file but never touches your per-project VMs or their secrets.
 
 ## Quick start
 
@@ -55,7 +55,7 @@ Resource sizing (defaults: 4 CPUs, 4 GiB memory, 60 GB disk) can be overridden w
 - **`claude-sandbox.yaml`** is a Lima template (Ubuntu, self-contained — see the file header for why it doesn't use Lima's `base:` composition) that:
   - installs `python3` with `pip` and `venv`
   - seeds `~/.gitconfig` and `~/.vimrc` from your host's copies, if `claudevm new` found any — one-time only, so later in-VM edits aren't overwritten on reboot
-  - wires up the per-VM secrets described under Credentials
+  - wires up the per-VM secrets described under [Credentials](#credentials)
 - **`claudevm`** is the wrapper: at `up` time it renders a per-instance Lima config (template plus an explicit `mounts:` list for the project dir and per-instance config/secrets) so the shared template file stays generic across all projects.
 - **`pre-push-branch-guard.sh`** is an optional git hook you can drop into a project to block direct pushes to protected branches, as a local backstop alongside GitHub branch protection rules.
 
@@ -63,7 +63,7 @@ Resource sizing (defaults: 4 CPUs, 4 GiB memory, 60 GB disk) can be overridden w
 
 None of your host credentials are ever mounted into a VM. Instead:
 
-- **Claude Code**: `claudevm secrets <name>` prompts you to run `claude setup-token` on your *host* (it needs a browser) and saves the result as a per-VM `CLAUDE_CODE_OAUTH_TOKEN` — scoped to inference only, not a full account session.
+- **Claude Code**: `claudevm secrets <name>` prompts you to run `claude setup-token` on your *host* (it needs a browser) and saves the result as a per-VM `CLAUDE_CODE_OAUTH_TOKEN`, scoped to inference only rather than a full account session.
 - **GitHub (optional)**: `claudevm secrets <name>` can prompt for a fine-grained personal access token, saved as a per-VM `GH_TOKEN`. This is the VM's sole GitHub credential, covering git push/pull (over HTTPS — SSH-style remotes get rewritten transparently), opening/managing PRs, Issues, and, if needed, Projects, all scoped to **one repo only** in the token's repository permissions. Pair this with a branch protection rule requiring PRs into `main`, so the token can push feature branches but not merge directly. One exception to the one-repo scoping: Projects (v2) boards belong to the org/user account, not a repo, so GitHub has no way to scope that permission to a single project board — granting it applies to every project that account owns. Unlike an SSH key, this token has a mandatory expiration; re-run `claudevm secrets <name>` to replace it (it'll offer to overwrite an existing one), then `claudevm down <name> && claudevm up <name>` to pick it up — the mount already exists, so a restart is all it takes, no need to recreate the VM.
 
 See `claudevm secrets --help` output (run the command) for the exact steps it prints.

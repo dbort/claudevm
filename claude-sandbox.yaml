@@ -24,7 +24,7 @@
 #   2. ~/.gitconfig and ~/.vimrc seeded from the host's copies, if `claudevm
 #      new` found any (one-time only, so later in-VM edits stick).
 #   3. Per-VM secrets (Claude token, GitHub token) wired up from
-#      /mnt/claudevm-secrets if the host provided them -- never your real
+#      /mnt/claudevm-secrets if the host provided them, never your real
 #      host credentials.
 
 minimumLimaVersion: 2.0.0
