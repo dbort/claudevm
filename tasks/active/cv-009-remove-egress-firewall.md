@@ -120,3 +120,9 @@ VMs.
 - [x] `tools/check --no-vm` green.
 
 ## Review log
+
+### Round 1: APPROVED
+- **N1: Full integration tier not run in this review** (`tasks/active/cv-009-remove-egress-firewall.md:52`): `limactl` is not on PATH, so the review ran `tools/check --no-vm` (exit 0: shellcheck clean, 33 unit tests passed, 9 integration deselected, mypy clean). The Mac full-run Must Have, which also covers provisioning against Lima's default resolver, stays open for `/ship` under `pipeline.md` § Checks.
+- **N2: Stale plural in README Install** (`README.md:27`): "refreshes the shared template files" should say "file"; `install.sh` copies only the template.
+- **N3: Em-dashes kept on edited README lines** (`README.md:3`, `README.md:66`): reworded lines keep em-dash asides that § Writing style forbids; they predate this task.
+- **N4: Unknown-command path has no test** (`claudevm:315`): the `allow`/`refresh` Must Have relies on it; the gap predates this task and the Decisions rule out tests for removed behavior.
