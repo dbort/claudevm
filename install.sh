@@ -2,8 +2,8 @@
 #
 # install.sh — set up claudevm on this Mac.
 #
-# Safe to re-run: it overwrites the shared template/allowlist files but never
-# touches your per-project instances under ~/.local/var/claudevm/instances/.
+# Safe to re-run: it overwrites the shared template file but never touches
+# your per-project instances under ~/.local/var/claudevm/instances/.
 
 set -euo pipefail
 
@@ -30,10 +30,9 @@ if ! command -v code >/dev/null 2>&1; then
   echo "  (Only needed for 'claudevm code'; everything else works without it.)"
 fi
 
-echo "==> Installing templates to $CLAUDEVM_HOME"
+echo "==> Installing the template to $CLAUDEVM_HOME"
 mkdir -p "$CLAUDEVM_HOME"
 cp "$REPO_DIR/claude-sandbox.yaml" "$CLAUDEVM_HOME/"
-cp "$REPO_DIR/default-allowlist.txt" "$CLAUDEVM_HOME/"
 
 echo "==> Installing the claudevm command"
 BIN_DIR=""

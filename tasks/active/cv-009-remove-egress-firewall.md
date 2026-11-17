@@ -68,6 +68,10 @@ VMs.
 - cv-005 (Docker and Go) is amended to assume no firewall, and is blocked
   on this task: its plan no longer adds Docker Hub to an allowlist, so
   landing it first would leave `docker pull` blocked.
+- 2026-11-17: the Must Have grep targets firewall terms. Its remaining
+  matches are accepted as false positives: "regression" (contains
+  "egress") in `CLAUDE.md` and `tests/test_new.py`, and GitHub Actions'
+  `egress-policy` setting in `.claude/docs/github-actions-hardening.md`.
 
 ## Notes
 - Known dependents of the deletions, by file:
@@ -96,6 +100,23 @@ VMs.
 - Docs outside the README describe current behavior only (`CLAUDE.md`
   § Writing style by destination).
 
+- 2026-11-17: also removed `run_claudevm`'s `extra_env` parameter, whose
+  only caller was `tests/test_allow.py`.
+- 2026-11-17: `/work` ran in a guest without `limactl`, so checks ran
+  with `--no-vm`; the full run on the Mac happens at `/ship`
+  (`pipeline.md` § Checks).
+
 ## Checklist
+- [x] Delete `default-allowlist.txt`, `tests/test_allow.py`,
+  `tests/test_refresh.py`.
+- [x] `claude-sandbox.yaml`: drop provisioning steps 1-4's firewall
+  parts, renumber steps and header list.
+- [x] `claudevm`: drop `allow`/`refresh`, `DEFAULT_ALLOWLIST`, the
+  allowlist copy and output line.
+- [x] `install.sh`, `tests/conftest.py`, `tests/test_new.py`,
+  `pipeline.md` § Checks.
+- [x] `README.md` (protection model, Limitations, migration note) and
+  `CLAUDE.md` description.
+- [x] `tools/check --no-vm` green.
 
 ## Review log
