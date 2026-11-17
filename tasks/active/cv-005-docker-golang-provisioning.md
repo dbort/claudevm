@@ -1,7 +1,7 @@
 ---
 id: cv-005
 title: "Install Docker and Go in new VM sandboxes"
-blocked_by: [cv-004]
+blocked_by: [cv-004, cv-009]
 legacy_format: true
 ---
 
@@ -27,20 +27,23 @@ than `cv-004` itself covers: verifying new guest-side provisioning (Docker,
 Go) actually works, the same way `cv-002` verified firewall behavior
 manually before this project had any test suite at all.
 
+**Blocked by `cv-009`** (remove outbound network restrictions): amended
+during cv-009's planning. This plan assumes VMs have unrestricted egress,
+so it no longer adds Docker Hub domains to an allowlist (decision #9) or
+documents a container-firewall gap (decision #2). Landing it before cv-009
+would leave `docker pull` blocked by the firewall.
+
 ## Background
 
 `claude-sandbox.yaml` provisions every new VM with a fixed, unconditional
-set of base packages (`iptables`, `ipset`, `dnsutils`, `cron`, `python3` +
-pip/venv) plus the firewall/DNS/secrets machinery described in the file's
-own header comment. There's no Docker or Go toolchain in any VM today, and
+set of base packages (`python3` + pip/venv once cv-009 lands) plus the
+dotfile and secrets provisioning described in the file's own header
+comment. There's no Docker or Go toolchain in any VM today, and
 no per-project mechanism to opt in to extra packages -- everything in the
 template applies to every VM.
 
-`default-allowlist.txt` already includes `go.dev`, `dl.google.com`,
-`proxy.golang.org`, and `sum.golang.org` (added in a prior commit, "Add Go
-sites to the allowlist"), apparently in anticipation of Go tooling being
-used inside a VM -- but no Go toolchain is actually installed anywhere yet.
-No Docker Hub domains exist in the allowlist at all.
+After cv-009, VMs have unrestricted outbound network access, so Go's
+module proxy and Docker Hub are reachable with no extra configuration.
 
 ### Why this isn't just "add two apt-get lines"
 
@@ -64,23 +67,12 @@ reach brand-new instances (or ones `claudevm new`'d but never yet booted) --
 matching this task's own "new VMs" framing exactly, with no migration path
 needed or possible for already-running instances short of `rm` + `new`.
 
-**Docker containers bypass the existing firewall entirely.** The whole
-default-deny/allowlist mechanism (`claude-sandbox.yaml` step 3's `OUTPUT`
-policy, `update-firewall.sh`'s ipset, `cv-002`'s fast-fail `REJECT`) is built
-on the `OUTPUT` chain -- traffic originated directly by host processes.
-Docker container traffic instead goes out through the `docker0` bridge, NAT,
-and the `FORWARD` chain, which Ubuntu leaves at its default policy of
-`ACCEPT`. **A running container would get fully unrestricted internet
-access, regardless of the allowlist**, even though every other process in
-the VM stays locked down. This is a real, current gap in what the sandbox
-promises, not a hypothetical.
 
 ## Goal
 
 Install Docker (engine + CLI + Compose) and a current Go toolchain,
 unconditionally, in every new VM -- matching the existing "no per-project
-package selection" pattern -- while being explicit (not silent) about the
-one significant gap this creates in the network sandbox.
+package selection" pattern.
 
 ## Decisions from the design interview
 
@@ -88,7 +80,10 @@ one significant gap this creates in the network sandbox.
    base-package pattern; this project has no per-instance package-selection
    mechanism anywhere today, and building one just for this would be new
    machinery beyond this task's actual ask.
-2. **The `FORWARD`-chain gap ships as a documented limitation, not a fix.**
+2. **Superseded by cv-009**: with no outbound restrictions there is no
+   container-firewall gap to document; drop the README Limitations bullet
+   and the cv-001 cross-reference below. Original decision, kept for the
+   record: **The `FORWARD`-chain gap ships as a documented limitation, not a fix.**
    Extending the allowlist/REJECT pattern to the `FORWARD` chain (so
    container egress is restricted the same way host egress is) would be
    real, non-trivial work on its own -- explicitly out of scope here.
@@ -125,7 +120,7 @@ one significant gap this creates in the network sandbox.
    not apt's `golang-go`. Ubuntu's packaged Go version typically lags well
    behind current stable, which matters more for Go than most languages
    since toolchain version ties directly to module/build compatibility.
-   `go.dev`/`dl.google.com` being pre-allowlisted supports this having been
+   `go.dev`/`dl.google.com` once being pre-allowlisted suggests this was
    the intent already.
 7. **Go version is pinned to one specific release** (exact version + tarball
    URL + sha256 checksum, verified against `go.dev/dl` at implementation
@@ -168,7 +163,9 @@ one significant gap this creates in the network sandbox.
      Needed because `$HOME/go/bin` (where `go install` puts binaries) is a
      directory of binaries that changes over time, so it can't be handled
      with a fixed set of symlinks the way `go`/`gofmt` themselves can.
-9. **Add Docker Hub domains to `default-allowlist.txt`**:
+9. **Superseded by cv-009**: there is no allowlist, so Docker Hub needs
+   no configuration. Original decision, kept for the record: **Add Docker
+   Hub domains to `default-allowlist.txt`**:
    `registry-1.docker.io`, `auth.docker.io`, `production.cloudflare.docker.com`
    (the actual CDN image layers are served from, not `docker.io` itself).
    Docker's own *installation* needs no new domain (it comes through Ubuntu's
@@ -187,8 +184,8 @@ one significant gap this creates in the network sandbox.
     ahead of this task landing): without it, containers get handed an IPv6
     address that can never actually route anywhere under this project's
     current networking backend (`gvisor-tap-vsock` -- the VM itself has
-    only a link-local IPv6 address and no default route, confirmed in
-    `cv-001`'s research findings), causing avoidable `Network unreachable`
+    only a link-local IPv6 address and no default route, confirmed
+    during cv-001's research, commit 9dd43b4), causing avoidable `Network unreachable`
     failures before falling back to IPv4. Applying `{"ipv6": false}` and
     restarting Docker on `deploy-pb` verified the fix directly.
 11. **VM resource defaults (4 CPU / 4 GiB / 60 GB) stay as-is.** The
@@ -217,22 +214,14 @@ one significant gap this creates in the network sandbox.
       `/usr/local/go/bin` path) -- the regression check for decision #8's
       `/etc/profile`-clobbering bug, found by manual testing before this
       task had any automated coverage at all.
-    - Explicitly **not** required: empirically reproducing the `FORWARD`-chain
-      gap (i.e., proving a container can reach a non-allowlisted domain).
-      The gap is accepted as a known, understood Linux/iptables behavior
-      rather than something that needs its own proof step for this task.
 
 ## Proposed plan
 
 1. **Confirm `cv-004` has landed** (or at least its integration-tier fixture
    infrastructure is usable) before starting this task's own test-writing
    work -- this task is blocked on that, not just "nice to sequence after."
-2. **Add Docker + Compose + Go install to `claude-sandbox.yaml`**, placed
-   before the firewall lockdown step (step 3 today), alongside/after the
-   existing base-package step (step 1) -- not after the ipset allowlist is
-   populated (step 4), since installation itself only needs Ubuntu's mirrors
-   (already reachable pre-lockdown) and shouldn't have any dependency on the
-   allowlist ipset being warm yet:
+2. **Add Docker + Compose + Go install to `claude-sandbox.yaml`**, after
+   the existing base-package step (step 1):
    - `apt-get install -y docker.io docker-compose-v2`.
    - `usermod -aG docker <default user>`.
    - Write `/etc/docker/daemon.json` with `{"ipv6": false}` (decision #10),
@@ -248,16 +237,11 @@ one significant gap this creates in the network sandbox.
      `/etc/profile.d/99-go-gobin.sh` appending `~/go/bin` to `PATH` (also
      for interactive shells, covering future `go install`ed binaries).
    - `systemctl enable --now docker`.
-3. **Add the three Docker Hub domains to `default-allowlist.txt`**, under a
-   new `# Docker Hub` comment section matching the file's existing
-   per-service grouping style.
+3. *(Removed by cv-009: no allowlist to add Docker Hub domains to.)*
 4. **Update `README.md`**:
    - Add Docker/Go to the "What this adds on top of stock Ubuntu" bullet
      list (`claude-sandbox.yaml`'s header comment, and/or the README's "How
      it works" section, whichever currently documents that list).
-   - Add a new bullet to the Limitations section describing the
-     `FORWARD`-chain gap plainly, cross-referencing `cv-001` as the fix path
-     (decision #2 above).
 5. **Write verification tests as new integration-tier test files under
    `tests/`**, once `cv-004`'s infrastructure is available, reusing its
    session-scoped real-VM fixture pattern (`claudevm-test-*` naming,
@@ -302,7 +286,8 @@ one significant gap this creates in the network sandbox.
   this project -- worth an explicit integration test asserting `go` is
   actually on `PATH` in a fresh, plain interactive SSH session (not just
   reachable via absolute path), so this doesn't silently regress.
-- Whether Docker's own `docker.io` postinst already handles
+- **Resolved by cv-009**: there is no firewall step left to coordinate
+  with. Original question: whether Docker's own `docker.io` postinst already handles
   `net.ipv4.ip_forward=1` and its own iptables/NAT setup cleanly on top of
   this project's existing from-scratch `iptables -F OUTPUT` step, or whether
   ordering between Docker's own provisioning and step 3's firewall rebuild
@@ -313,15 +298,8 @@ one significant gap this creates in the network sandbox.
 
 ## Non-goals
 
-- Not extending the allowlist/REJECT firewall pattern to the `FORWARD`
-  chain to actually restrict container egress -- documented gap only
-  (decision #2), with `cv-001` noted as the natural fix path if/when that's
-  picked up.
 - Not making Docker/Go opt-in or configurable per project -- unconditional
   for every new VM (decision #1).
-- Not adding a CLAUDE.md note for the in-VM agent about the container-
-  network gap -- decided the README's Limitations section is the right
-  place for this (decision #2).
 - Not bumping default VM resource sizing -- existing env var overrides are
   considered sufficient (decision #11).
 - Not wiring CI, and not testing `claudevm`'s own CLI wrapper commands --
