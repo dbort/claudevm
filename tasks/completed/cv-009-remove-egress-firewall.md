@@ -14,32 +14,32 @@ existed; only the README mentions them, to explain how to migrate existing
 VMs.
 
 ## Must Have
-- [ ] `claude-sandbox.yaml` installs none of `iptables`, `ipset`,
+- [x] `claude-sandbox.yaml` installs none of `iptables`, `ipset`,
   `dnsutils` or `cron`, writes no `iptables`/`ip6tables` rules, no
   systemd-resolved or `resolvectl` DNS override, no `/usr/local/bin`
   firewall script, and no cron job. Its header comment lists only the
   provisioning that remains.
-- [ ] `claudevm allow` and `claudevm refresh` do not exist: both exit
+- [x] `claudevm allow` and `claudevm refresh` do not exist: both exit
   nonzero through the existing unknown-command usage path, and `usage`
   lists neither.
-- [ ] `claudevm new` creates no `allowlist.txt` and prints no allowlist
+- [x] `claudevm new` creates no `allowlist.txt` and prints no allowlist
   line.
-- [ ] `default-allowlist.txt`, `tests/test_allow.py` and
+- [x] `default-allowlist.txt`, `tests/test_allow.py` and
   `tests/test_refresh.py` are deleted, and `install.sh` copies only the
   template.
-- [ ] `git grep -n -i -E 'allowlist|firewall|iptables|ipset|egress'`
+- [x] `git grep -n -i -E 'allowlist|firewall|iptables|ipset|egress'`
   matches nothing outside `tasks/` and the README's migration note.
-- [ ] `README.md` presents the protection as the per-project VM (its own
+- [x] `README.md` presents the protection as the per-project VM (its own
   kernel) plus per-VM scoped credentials, with no host credentials or
   home directory mounted. Its Limitations section says outbound network
   access is unrestricted, so anything running in a VM can send that VM's
   project code and tokens anywhere.
-- [ ] `README.md` has one migration note: VMs created before this change
+- [x] `README.md` has one migration note: VMs created before this change
   keep their old network restrictions, which their stored provisioning
   reapplies on every boot, until recreated with `claudevm rm`, `new`,
   `secrets` and `up`.
-- [ ] `CLAUDE.md`'s project description no longer mentions a firewall.
-- [ ] `tools/check` passes in full, integration tier included, on the Mac.
+- [x] `CLAUDE.md`'s project description no longer mentions a firewall.
+- [x] `tools/check` passes in full, integration tier included, on the Mac.
 
 ## Decisions
 - Remove everything that exists only for the firewall: the rules, the
