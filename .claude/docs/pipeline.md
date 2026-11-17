@@ -69,8 +69,8 @@ it. `tools/check --no-vm` runs everything except the integration tier.
 - `/work`, the reviewer, and `/ship` pass `--no-vm` only when `limactl`
   is not on `PATH`, and say so in the review round or ship report.
 - `/ship` under `--no-vm`, when `git diff --name-only main...cv-XXX`
-  touches `claudevm`, `claude-sandbox.yaml`, `default-allowlist.txt`,
-  `install.sh` or `tests/`: after the `--no-vm` run passes on the merged
+  touches `claudevm`, `claude-sandbox.yaml`, `install.sh` or
+  `tests/`: after the `--no-vm` run passes on the merged
   tree, leave the merge uncommitted and ask the user to run `tools/check`
   on the Mac in the same tree (the repo is a host mount). Commit the merge
   on the user's report of green; on red, `git merge --abort`.

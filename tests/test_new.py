@@ -20,7 +20,6 @@ def test_new_creates_instance_config(run_claudevm, claudevm_instances_dir, tmp_p
     assert result.returncode == 0, result.stderr
     instance_dir = claudevm_instances_dir / "myproject"
     assert instance_dir.is_dir()
-    assert (instance_dir / "allowlist.txt").is_file()
     assert (instance_dir / "project-dir").read_text().strip() == str(project_dir)
 
 

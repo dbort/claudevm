@@ -1,5 +1,5 @@
 ---
-next_id: friction-002
+next_id: friction-003
 ---
 
 # Friction log
@@ -36,3 +36,13 @@ its message.
   was absent; the user installed both with apt by hand (cv-008). Simpler
   if: an opt-in way to provision extra packages per VM, or a documented
   setup step for VMs that develop claudevm itself.
+- `friction-002` - **Editing files on the project mount from a
+  subagent**: during cv-009's `/ship`, two of the `hygiene` subagent's
+  Edit calls left `README.md` and `claude-sandbox.yaml` at 0 bytes on
+  the `/workspace` host mount ("Write verification failed ... is 0 bytes
+  on disk"), while a third Edit in the same run wrote correctly. The
+  files were committed, so `git checkout --` restored them and the main
+  session reapplied the edits with a Python write. Cause not found.
+  Simpler if: the rendered Lima config's project mount (`cmd_up` in
+  `claudevm`) used a mount type that handles the Edit tool's write
+  pattern, once the cause is known.

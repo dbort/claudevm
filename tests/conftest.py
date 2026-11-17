@@ -41,7 +41,6 @@ def claudevm_home(tmp_path):
     home = tmp_path / "claudevm-home"
     home.mkdir()
     shutil.copy(REPO_ROOT / "claude-sandbox.yaml", home / "claude-sandbox.yaml")
-    shutil.copy(REPO_ROOT / "default-allowlist.txt", home / "default-allowlist.txt")
     return home
 
 
@@ -114,11 +113,10 @@ def run_claudevm(
     dirs -- never touches the user's real config, secrets, or dotfiles.
 
     include_code=False puts a PATH with the fake limactl but no `code` on
-    it, for testing cmd_code's "not installed" error path. extra_env merges
-    additional variables in (e.g. EDITOR for cmd_allow tests).
+    it, for testing cmd_code's "not installed" error path.
     """
 
-    def _run(args, input=None, timeout=30, include_code=True, extra_env=None):
+    def _run(args, input=None, timeout=30, include_code=True):
         env = dict(os.environ)
         if include_code:
             env["PATH"] = f"{FAKES_DIR}:{env.get('PATH', '')}"
@@ -141,8 +139,6 @@ def run_claudevm(
         env["FAKE_LIMACTL_STATE"] = str(fake_limactl_state)
         env["FAKE_LIMACTL_LOG"] = str(fake_limactl_log)
         env["FAKE_CODE_LOG"] = str(fake_code_log)
-        if extra_env:
-            env.update(extra_env)
         return subprocess.run(
             [str(CLAUDEVM_BIN), *args],
             env=env,
@@ -185,7 +181,6 @@ def _test_instance_name():
 def real_claudevm_home(tmp_path_factory):
     home = tmp_path_factory.mktemp("real-claudevm-home")
     shutil.copy(REPO_ROOT / "claude-sandbox.yaml", home / "claude-sandbox.yaml")
-    shutil.copy(REPO_ROOT / "default-allowlist.txt", home / "default-allowlist.txt")
     return home
 
 
@@ -277,8 +272,8 @@ def real_code_calls(real_claudevm_home):
 def shared_instance(run_real_claudevm, tmp_path_factory):
     """(name, project_dir), a single real VM created and booted once for
     the whole test session, reused by most integration tests (ssh,
-    refresh, secrets, ls, down/up resume) that don't specifically need a
-    fresh instance. Torn down once at the end of the session."""
+    secrets, ls, down/up resume) that don't need a fresh instance. Torn
+    down once at the end of the session."""
     name = _test_instance_name()
     project_dir = tmp_path_factory.mktemp("shared-instance-project")
 

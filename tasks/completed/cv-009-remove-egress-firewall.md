@@ -14,32 +14,32 @@ existed; only the README mentions them, to explain how to migrate existing
 VMs.
 
 ## Must Have
-- [ ] `claude-sandbox.yaml` installs none of `iptables`, `ipset`,
+- [x] `claude-sandbox.yaml` installs none of `iptables`, `ipset`,
   `dnsutils` or `cron`, writes no `iptables`/`ip6tables` rules, no
   systemd-resolved or `resolvectl` DNS override, no `/usr/local/bin`
   firewall script, and no cron job. Its header comment lists only the
   provisioning that remains.
-- [ ] `claudevm allow` and `claudevm refresh` do not exist: both exit
+- [x] `claudevm allow` and `claudevm refresh` do not exist: both exit
   nonzero through the existing unknown-command usage path, and `usage`
   lists neither.
-- [ ] `claudevm new` creates no `allowlist.txt` and prints no allowlist
+- [x] `claudevm new` creates no `allowlist.txt` and prints no allowlist
   line.
-- [ ] `default-allowlist.txt`, `tests/test_allow.py` and
+- [x] `default-allowlist.txt`, `tests/test_allow.py` and
   `tests/test_refresh.py` are deleted, and `install.sh` copies only the
   template.
-- [ ] `git grep -n -i -E 'allowlist|firewall|iptables|ipset|egress'`
+- [x] `git grep -n -i -E 'allowlist|firewall|iptables|ipset|egress'`
   matches nothing outside `tasks/` and the README's migration note.
-- [ ] `README.md` presents the protection as the per-project VM (its own
+- [x] `README.md` presents the protection as the per-project VM (its own
   kernel) plus per-VM scoped credentials, with no host credentials or
   home directory mounted. Its Limitations section says outbound network
   access is unrestricted, so anything running in a VM can send that VM's
   project code and tokens anywhere.
-- [ ] `README.md` has one migration note: VMs created before this change
+- [x] `README.md` has one migration note: VMs created before this change
   keep their old network restrictions, which their stored provisioning
   reapplies on every boot, until recreated with `claudevm rm`, `new`,
   `secrets` and `up`.
-- [ ] `CLAUDE.md`'s project description no longer mentions a firewall.
-- [ ] `tools/check` passes in full, integration tier included, on the Mac.
+- [x] `CLAUDE.md`'s project description no longer mentions a firewall.
+- [x] `tools/check` passes in full, integration tier included, on the Mac.
 
 ## Decisions
 - Remove everything that exists only for the firewall: the rules, the
@@ -68,6 +68,10 @@ VMs.
 - cv-005 (Docker and Go) is amended to assume no firewall, and is blocked
   on this task: its plan no longer adds Docker Hub to an allowlist, so
   landing it first would leave `docker pull` blocked.
+- 2026-11-17: the Must Have grep targets firewall terms. Its remaining
+  matches are accepted as false positives: "regression" (contains
+  "egress") in `CLAUDE.md` and `tests/test_new.py`, and GitHub Actions'
+  `egress-policy` setting in `.claude/docs/github-actions-hardening.md`.
 
 ## Notes
 - Known dependents of the deletions, by file:
@@ -96,6 +100,29 @@ VMs.
 - Docs outside the README describe current behavior only (`CLAUDE.md`
   § Writing style by destination).
 
+- 2026-11-17: also removed `run_claudevm`'s `extra_env` parameter, whose
+  only caller was `tests/test_allow.py`.
+- 2026-11-17: `/work` ran in a guest without `limactl`, so checks ran
+  with `--no-vm`; the full run on the Mac happens at `/ship`
+  (`pipeline.md` § Checks).
+
 ## Checklist
+- [x] Delete `default-allowlist.txt`, `tests/test_allow.py`,
+  `tests/test_refresh.py`.
+- [x] `claude-sandbox.yaml`: drop provisioning steps 1-4's firewall
+  parts, renumber steps and header list.
+- [x] `claudevm`: drop `allow`/`refresh`, `DEFAULT_ALLOWLIST`, the
+  allowlist copy and output line.
+- [x] `install.sh`, `tests/conftest.py`, `tests/test_new.py`,
+  `pipeline.md` § Checks.
+- [x] `README.md` (protection model, Limitations, migration note) and
+  `CLAUDE.md` description.
+- [x] `tools/check --no-vm` green.
 
 ## Review log
+
+### Round 1: APPROVED
+- **N1: Full integration tier not run in this review** (`tasks/active/cv-009-remove-egress-firewall.md:52`): `limactl` is not on PATH, so the review ran `tools/check --no-vm` (exit 0: shellcheck clean, 33 unit tests passed, 9 integration deselected, mypy clean). The Mac full-run Must Have, which also covers provisioning against Lima's default resolver, stays open for `/ship` under `pipeline.md` § Checks.
+- **N2: Stale plural in README Install** (`README.md:27`): "refreshes the shared template files" should say "file"; `install.sh` copies only the template.
+- **N3: Em-dashes kept on edited README lines** (`README.md:3`, `README.md:66`): reworded lines keep em-dash asides that § Writing style forbids; they predate this task.
+- **N4: Unknown-command path has no test** (`claudevm:315`): the `allow`/`refresh` Must Have relies on it; the gap predates this task and the Decisions rule out tests for removed behavior.

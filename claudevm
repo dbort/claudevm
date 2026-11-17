@@ -7,7 +7,6 @@
 #
 # Per project:
 #   claudevm new myproject ~/code/myproject     # create config (doesn't boot yet)
-#   claudevm allow myproject                    # optional: edit domain allowlist
 #   claudevm secrets myproject                  # if the VM needs a Claude Code token or GitHub
 #                                                # access (push/pull, PRs, Issues/Projects API),
 #                                                # saves a scoped Claude token + GitHub PAT
@@ -21,7 +20,6 @@ set -euo pipefail
 
 CLAUDEVM_HOME="${CLAUDEVM_HOME:-$HOME/.config/claudevm}"
 TEMPLATE="$CLAUDEVM_HOME/claude-sandbox.yaml"
-DEFAULT_ALLOWLIST="$CLAUDEVM_HOME/default-allowlist.txt"
 INSTANCES_DIR="${CLAUDEVM_INSTANCES:-$HOME/.local/var/claudevm/instances}"
 # Source of ~/.gitconfig/~/.vimrc seeding in cmd_new -- normally your real
 # home, but overridable (e.g. in tests) without affecting anything else.
@@ -36,14 +34,12 @@ usage() {
 Usage: claudevm <command> [args]
 
   new <name> <project-dir>   Create config for a new sandbox
-  allow <name>                Edit the domain allowlist for a sandbox (\$EDITOR)
   secrets <name>               Save a Claude Code token + (optional) GitHub token
   up <name>                   Boot (or resume) the sandbox VM
   down <name>                 Stop the VM (disk state is kept)
   rm <name>                   Stop, delete the VM, and delete its config
   ssh <name> [-- cmd]         Shell into the VM, or run cmd non-interactively
   code <name>                 Open VS Code (Remote-SSH) into /workspace on the VM
-  refresh <name>               Re-run the firewall/allowlist refresh immediately
   ls [--json]                  List claudevm-managed instances and their status
 EOF
 }
@@ -85,7 +81,6 @@ cmd_new() {
 
   local cfg_dir="$INSTANCES_DIR/$name"
   mkdir -p "$cfg_dir"
-  cp "$DEFAULT_ALLOWLIST" "$cfg_dir/allowlist.txt"
   echo "$project_dir" > "$cfg_dir/project-dir"
 
   if [ -f "$DOTFILES_SOURCE/.gitconfig" ]; then
@@ -97,7 +92,6 @@ cmd_new() {
 
   echo "Created sandbox config: $name"
   echo "  Project dir:  $project_dir"
-  echo "  Allowlist:    $cfg_dir/allowlist.txt  (edit with: claudevm allow $name)"
   echo "Next: claudevm up $name"
 }
 
@@ -194,19 +188,6 @@ cmd_code() {
     exit 1
   fi
   code --remote "ssh-remote+lima-$name" /workspace
-}
-
-cmd_refresh() {
-  local name="${1:?instance name required}"
-  limactl shell "$name" -- sudo /usr/local/bin/update-firewall.sh
-  echo "Firewall allowlist refreshed on '$name'."
-}
-
-cmd_allow() {
-  local name="${1:?instance name required}"
-  require_instance "$name"
-  "${EDITOR:-vi}" "$INSTANCES_DIR/$name/allowlist.txt"
-  echo "Saved. Apply now with: claudevm refresh $name  (otherwise it applies within 5 min)"
 }
 
 cmd_ls() {
@@ -323,14 +304,12 @@ main() {
   shift || true
   case "$cmd" in
     new) cmd_new "$@" ;;
-    allow) cmd_allow "$@" ;;
     secrets) cmd_secrets "$@" ;;
     up) cmd_up "$@" ;;
     down) cmd_down "$@" ;;
     rm) cmd_rm "$@" ;;
     ssh) cmd_ssh "$@" ;;
     code) cmd_code "$@" ;;
-    refresh) cmd_refresh "$@" ;;
     ls) cmd_ls "$@" ;;
     -h|--help|help) usage ;;
     *) echo "Unknown command: $cmd" >&2; usage; exit 1 ;;
