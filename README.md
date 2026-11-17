@@ -87,6 +87,10 @@ install.sh                  One-shot setup script
 pre-push-branch-guard.sh    Optional git hook for protected branches
 test.sh                     Test entry point (see Testing below)
 tests/                      pytest suite (unit + integration tiers)
+tools/check                 Merge gate: shellcheck, tests, mypy
+tools/task_status.py        Task backlog and next free task id
+tasks/                      Task plans (active, completed, abandoned)
+.claude/                    Claude Code task pipeline: skills, agents, rules
 README.md                   This file
 ```
 
@@ -98,6 +102,8 @@ README.md                   This file
 ./test.sh integration   # slow tier -- boots real, namespaced claudevm-test-* VMs
 ./test.sh unit -- -k test_new   # forward extra args straight to pytest
 ```
+
+`tools/check` runs the whole gate: `shellcheck`, the full test suite, and `mypy`. Pass `--no-vm` to skip the integration tier where Lima isn't installed, such as inside a claudevm guest.
 
 `test.sh` manages its own virtualenv under `.venv/` (created and kept up to date automatically) — there's no separate setup step, and no need to invoke `pytest` directly.
 

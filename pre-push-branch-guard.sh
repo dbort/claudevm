@@ -11,7 +11,7 @@
 
 PROTECTED_BRANCHES="${CLAUDEVM_PROTECTED_BRANCHES:-main master prod production}"
 
-while read -r local_ref local_sha remote_ref remote_sha; do
+while read -r _ _ remote_ref _; do
   branch="${remote_ref#refs/heads/}"
   for protected in $PROTECTED_BRANCHES; do
     if [ "$branch" = "$protected" ]; then

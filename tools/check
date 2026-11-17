@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+#
+# The merge gate. Contract: .claude/docs/pipeline.md § Checks, which also
+# says when a caller may pass --no-vm.
+#
+# Usage: tools/check [--smoke] [--no-vm]
+#   --smoke   unit tier only (the integration tier is the slow part)
+#   --no-vm   skip the integration tier, for hosts without Lima
+#
+# Must stay bash 3.2 compatible: it runs on stock macOS as well as Linux.
+set -uo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_DIR" || exit 1
+
+tier="all"
+for arg in "$@"; do
+  case "$arg" in
+    --smoke | --no-vm) tier="unit" ;;
+    *)
+      echo "Usage: tools/check [--smoke] [--no-vm]" >&2
+      exit 2
+      ;;
+  esac
+done
+
+failed=0
+fail() {
+  echo "FAIL: $1" >&2
+  failed=1
+}
+
+if [ "$tier" = "all" ] && ! command -v limactl >/dev/null 2>&1; then
+  echo "limactl not found: the integration tier needs Lima." >&2
+  echo "On a host without Lima, pass --no-vm (.claude/docs/pipeline.md § Checks)." >&2
+  exit 1
+fi
+
+echo "==> shellcheck"
+if command -v shellcheck >/dev/null 2>&1; then
+  shellcheck claudevm install.sh test.sh pre-push-branch-guard.sh tools/check ||
+    fail "shellcheck"
+else
+  fail "shellcheck not found (brew install shellcheck / apt install shellcheck)"
+fi
+
+# test.sh also creates and updates .venv, which provides mypy below.
+echo "==> tests ($tier)"
+./test.sh "$tier" || fail "tests"
+
+echo "==> mypy --strict"
+if [ -x .venv/bin/mypy ]; then
+  # mypy's default SQLite cache fails with "file is not a database" when the
+  # repo sits on a Lima 9p mount, as it does inside a claudevm guest.
+  .venv/bin/mypy --strict --no-sqlite-cache tools/task_status.py || fail "mypy"
+else
+  fail "mypy not found in .venv (see test.sh output above)"
+fi
+
+if [ "$failed" -ne 0 ]; then
+  echo "tools/check: FAILED" >&2
+  exit 1
+fi
+echo "tools/check: all checks passed"
