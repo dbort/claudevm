@@ -1,3 +1,10 @@
+---
+id: cv-005
+title: "Install Docker and Go in new VM sandboxes"
+blocked_by: [cv-004]
+legacy_format: true
+---
+
 # cv-005: Install Docker and Go in new VM sandboxes
 
 ## Status
@@ -328,3 +335,7 @@ one significant gap this creates in the network sandbox.
   evidence of a non-container process on the VM hitting the same issue, so
   there was nothing left for a broader VM-wide fix to cover. `cv-007` was
   deleted rather than kept as an empty placeholder.
+
+## Checklist
+
+## Review log

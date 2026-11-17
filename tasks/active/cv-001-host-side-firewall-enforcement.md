@@ -1,3 +1,9 @@
+---
+id: cv-001
+title: "Move firewall enforcement from guest to host"
+legacy_format: true
+---
+
 # cv-001: Move firewall enforcement from guest to host
 
 ## Status
@@ -274,3 +280,7 @@ defense-in-depth.
 - Not attempting to support this on Intel Macs or the `qemu` `vmType`
   fallback mentioned in `claude-sandbox.yaml`'s commented-out note — this
   is `vz`-driver-specific (Apple Silicon).
+
+## Checklist
+
+## Review log

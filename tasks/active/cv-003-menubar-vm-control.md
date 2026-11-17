@@ -1,3 +1,10 @@
+---
+id: cv-003
+title: "Menubar app for starting/stopping VMs without a terminal"
+blocked_by: [cv-004]
+legacy_format: true
+---
+
 # cv-003: Menubar app for starting/stopping VMs without a terminal
 
 ## Status
@@ -196,3 +203,7 @@ Status note above.)
 - Not implementing `claudevm ls`'s scope change or `--json` mode -- that's
   `cv-004`'s job (moved there during `cv-004`'s design interview); this task
   only consumes that interface once it exists.
+
+## Checklist
+
+## Review log

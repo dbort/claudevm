@@ -1,3 +1,9 @@
+---
+id: cv-006
+title: "`claudevm firewall pause`/`resume`/`status`"
+legacy_format: true
+---
+
 # cv-006: `claudevm firewall pause`/`resume`/`status`
 
 ## Status
@@ -211,3 +217,7 @@ chain state, not just restore the policy value:
 - Not related to `cv-004` (command-tests) or `cv-005` (Docker/Golang
   provisioning) — independent work landed by other sessions in this repo
   in parallel with this one.
+
+## Checklist
+
+## Review log
