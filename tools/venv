@@ -3,9 +3,10 @@
 # Prints the path of this host's test virtualenv after creating it or
 # reinstalling tests/requirements.txt as needed. Progress goes to stderr.
 #
-# Each OS, architecture and Python version gets its own directory under
-# .venv/: a claudevm guest and its host share this tree through the project
-# mount, and a venv works only with the interpreter that built it.
+# Each host, OS, architecture and Python version gets its own directory
+# under .venv/: a claudevm guest and its host share this tree through the
+# project mount, and a venv works only with the interpreter that built it
+# and at the path it was built at, which the two sides may mount it under.
 #
 # Must stay bash 3.2 compatible: it runs on stock macOS as well as Linux.
 set -euo pipefail
@@ -18,7 +19,10 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 py_version="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
-VENV_DIR="$REPO_DIR/.venv/$(uname -s)-$(uname -m)-py$py_version"
+host="$(uname -n)"
+# Keep the name a single safe path component whatever the hostname holds.
+host="${host//[^A-Za-z0-9._-]/_}"
+VENV_DIR="$REPO_DIR/.venv/$host-$(uname -s)-$(uname -m)-py$py_version"
 
 if [ ! -x "$VENV_DIR/bin/python3" ]; then
   echo "==> Setting up test virtualenv at $VENV_DIR" >&2

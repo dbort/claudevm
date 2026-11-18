@@ -97,6 +97,9 @@ VM-affecting branch ships. Testing happens on Fedora 45 (AMD Ryzen 7 2700).
   never names Lima. A missing `qemu-system-<arch>` adds `qemu-kvm
   qemu-img` to it: `qemu-kvm` pulls in the host-arch emulator and its
   firmware on both arches, and Lima needs `qemu-img` for disks.
+- 2026-11-17: Key each test venv by hostname too (`uname -n`, reduced to
+  `[A-Za-z0-9._-]`), at the user's request: the guest and host can mount
+  the repo at different paths, and venv scripts carry absolute shebangs.
 
 ## Notes
 - Platform-specific code found so far: `install.sh` (Homebrew-only Lima
@@ -150,6 +153,8 @@ VM-affecting branch ships. Testing happens on Fedora 45 (AMD Ryzen 7 2700).
 - [x] Per-host venvs under `.venv/` (`tools/venv`): the first Fedora host
   check failed because the guest-built `.venv` resolved to Fedora's
   Python and found no site-packages.
+- [x] Round 3 notes: hostname in the venv key, `tools/venv` in the Stack
+  bullet, `pipeline.md` paragraph placement and status caveat.
 - [ ] Host checks on macOS and Fedora 45; manual QA on Fedora 45.
 
 ## Review log

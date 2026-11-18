@@ -28,8 +28,8 @@ destination).
 
 ## Project conventions
 
-- **Stack.** `claudevm`, `install.sh`, `test.sh` and `tools/check` are
-  bash and must run under bash 3.2 (stock macOS `/bin/bash`) as well as
+- **Stack.** `claudevm`, `install.sh`, `test.sh`, `tools/check` and
+  `tools/venv` are bash and must run under bash 3.2 (stock macOS `/bin/bash`) as well as
   Linux. `claude-sandbox.yaml` is a self-contained Lima template whose
   provisioning scripts run as root in the Ubuntu guest. Tests and repo
   tooling are Python.

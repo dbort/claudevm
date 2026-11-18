@@ -60,6 +60,11 @@ commits the merge. Its contract:
 - A check that needs the network runs by default, fails on any network
   error, and skips itself only under `--offline`.
 
+Run a slow check once per checkpoint. Save its output and exit status, for
+example `tools/check > "$out" 2>&1; echo "exit=$?"`, then read that file as
+often as needed. Rerun only when the code changed or a failure needs
+reproducing.
+
 ### `--no-vm`
 
 The integration tier boots real Lima VMs, so it runs only on a macOS or
@@ -91,14 +96,10 @@ only after a full `tools/check` passes on both.
 - On either red, the branch goes back to implementing: fix the failure,
   then a new review round, then host checks again at the new approved
   commit.
-- `/ship` refuses a VM-affecting branch when that line is missing, or when
+- `/ship` reads the last such line in the log. It refuses a VM-affecting
+  branch when there is none, or when
   `git diff --name-only <sha> cv-XXX` at `/ship` start lists any file
   besides the task file.
-
-Run a slow check once per checkpoint. Save its output and exit status, for
-example `tools/check > "$out" 2>&1; echo "exit=$?"`, then read that file as
-often as needed. Rerun only when the code changed or a failure needs
-reproducing.
 
 ## Status
 
@@ -110,6 +111,9 @@ Status is derived, never stored:
 | `cv-XXX` branch exists, last review round not APPROVED | in progress (with the last round's verdict) |
 | last `## Review log` round on the branch is APPROVED | awaiting `/ship` |
 | `tasks/completed/` | done |
+
+A VM-affecting branch shows awaiting `/ship` before its § Host checks
+line exists, and `/ship` still refuses it until that line is recorded.
 
 `python3 tools/task_status.py` reports this for every active task in
 dependency order, plus the next free id. While a task's branch exists, its
