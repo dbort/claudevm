@@ -91,6 +91,12 @@ VM-affecting branch ships. Testing happens on Fedora 45 (AMD Ryzen 7 2700).
 - The research notes in `/tmp/cv-007-linux-fedora-host.md` about
   host-side egress enforcement (nftables, cgroups, `lima:shared`, proxies,
   Incus) are moot: cv-009 removed every network restriction.
+- 2026-11-17: Fedora 45 does not package Lima (`dnf info lima` finds
+  nothing; the user installed upstream Lima 2.3.0 by hand). A missing
+  `limactl` gets only the upstream install link, and the `dnf` line
+  never names Lima. A missing `qemu-system-<arch>` adds `qemu-kvm
+  qemu-img` to it: `qemu-kvm` pulls in the host-arch emulator and its
+  firmware on both arches, and Lima needs `qemu-img` for disks.
 
 ## Notes
 - Platform-specific code found so far: `install.sh` (Homebrew-only Lima
@@ -128,5 +134,19 @@ VM-affecting branch ships. Testing happens on Fedora 45 (AMD Ryzen 7 2700).
   rule to cv-010 itself.
 
 ## Checklist
+- [x] `install.sh`: Linux dependency report with `dnf` hint; macOS brew
+  install of Lima and `jq`; platform-neutral PATH and `code` notes.
+- [x] `claudevm up`: `require_kvm` before any `limactl` call, Linux only,
+  device overridable through `CLAUDEVM_KVM_DEVICE`.
+- [x] Fake `uname` in `tests/fakes/`; `run_claudevm` pins platform and
+  KVM device; `run_real_claudevm` fakes only `code`.
+- [x] `real_lima_home` under the resolved `/tmp`.
+- [x] Tests: `tests/test_install.py`, KVM cases in `test_up.py`, both
+  platforms in `test_code.py`.
+- [x] Host-check rule in `pipeline.md`, `work` and `ship` skills,
+  `CLAUDE.md`.
+- [x] README and `CLAUDE.md` name both hosts; `test.sh` python3 hint.
+- [ ] `tools/check --no-vm` green, review.
+- [ ] Host checks on macOS and Fedora 45; manual QA on Fedora 45.
 
 ## Review log

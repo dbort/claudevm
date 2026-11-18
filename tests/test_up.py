@@ -81,6 +81,46 @@ def test_up_does_not_crash_when_no_ssh_control_socket_exists(run_claudevm, tmp_p
     assert result.returncode == 0, result.stderr
 
 
+def _new_project(run_claudevm, tmp_path):
+    project_dir = tmp_path / "proj"
+    project_dir.mkdir()
+    result = run_claudevm(["new", "myproject", str(project_dir)])
+    assert result.returncode == 0, result.stderr
+
+
+def test_up_without_kvm_on_linux_fails_before_create(run_claudevm, limactl_calls, tmp_path):
+    _new_project(run_claudevm, tmp_path)
+
+    result = run_claudevm(["up", "myproject"], kvm=False)
+
+    assert result.returncode != 0
+    assert str(tmp_path / "no-kvm") in result.stderr
+    assert "KVM" in result.stderr
+    assert limactl_calls() == []
+
+
+def test_up_without_kvm_on_linux_fails_before_resume(run_claudevm, limactl_calls, tmp_path):
+    _new_project(run_claudevm, tmp_path)
+    first_up = run_claudevm(["up", "myproject"])
+    assert first_up.returncode == 0, first_up.stderr
+    calls_before = len(limactl_calls())
+
+    result = run_claudevm(["up", "myproject"], kvm=False)
+
+    assert result.returncode != 0
+    assert str(tmp_path / "no-kvm") in result.stderr
+    assert len(limactl_calls()) == calls_before
+
+
+def test_up_on_macos_skips_kvm_check(run_claudevm, limactl_state, tmp_path):
+    _new_project(run_claudevm, tmp_path)
+
+    result = run_claudevm(["up", "myproject"], platform="Darwin", kvm=False)
+
+    assert result.returncode == 0, result.stderr
+    assert limactl_state()["instances"]["myproject"] == "Running"
+
+
 @pytest.mark.integration
 @pytest.mark.timeout(600)
 def test_down_then_up_resumes_real_instance(run_real_claudevm, shared_instance):

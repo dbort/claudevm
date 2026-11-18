@@ -1,18 +1,21 @@
 # claudevm
 
-Per-project, isolated Linux VMs for running Claude Code sessions on Apple Silicon Macs, built on [Lima](https://lima-vm.io), with simple per-VM credential handling baked in.
+Per-project, isolated Linux VMs for running Claude Code sessions on Apple Silicon Macs and Linux hosts, built on [Lima](https://lima-vm.io), with simple per-VM credential handling baked in.
 
 Each project gets its own real virtual machine (its own kernel, not just a container namespace), mounted into VS Code over SSH. A VM sees only its project directory and its own scoped credentials: none of your host credentials, and not your home directory.
 
 ## Why a VM instead of a container
 
-Containers on macOS all run inside one shared Linux VM under the hood anyway (there's no native Linux kernel to run them on). If you want a real security boundary — a separate kernel per project, not just namespace isolation inside one shared kernel — you want dedicated VMs. Lima gives you that with near-container ergonomics: fast boot, simple mounts, native SSH.
+Containers on macOS all run inside one shared Linux VM under the hood anyway (there's no native Linux kernel to run them on). On a Linux host, containers share the host's own kernel, so a kernel exploit in one reaches the host and every other project. If you want a real security boundary, a separate kernel per project rather than namespace isolation inside one shared kernel, you want dedicated VMs. Lima gives you that with near-container ergonomics: fast boot, simple mounts, native SSH.
 
 ## Requirements
 
-- Apple Silicon Mac, macOS 13+
-- [Homebrew](https://brew.sh)
-- VS Code, with the Remote - SSH extension (optional, only needed for `claudevm code`)
+One of:
+
+- **macOS:** an Apple Silicon Mac on macOS 13+, with [Homebrew](https://brew.sh).
+- **Linux:** an x86_64 or aarch64 host with [Lima](https://lima-vm.io/docs/installation/), QEMU for the host's architecture (`qemu-system-x86_64` or `qemu-system-aarch64`), `jq`, and read/write access to `/dev/kvm`. Tested on Fedora.
+
+Optionally, VS Code with the Remote - SSH extension: `claudevm code` opens a Remote-SSH connection into the VM when the `code` CLI is on your `PATH`.
 
 ## Install
 
@@ -22,7 +25,7 @@ cd claudevm-kit
 ./install.sh
 ```
 
-This installs Lima (via Homebrew, if not already present), copies the VM template to `~/.config/claudevm/`, installs the `claudevm` command onto your `PATH`, and adds an `Include` line to `~/.ssh/config` so VS Code's Remote-SSH extension can see Lima-managed hosts.
+On macOS, this installs Lima and `jq` via Homebrew if they're missing. On Linux, it installs nothing: if a dependency is missing, it lists everything missing, prints the steps to install it (a `sudo dnf install` line where `dnf` exists), and exits. With dependencies in place, it copies the VM template to `~/.config/claudevm/`, installs the `claudevm` command onto your `PATH`, and adds an `Include` line to `~/.ssh/config` so VS Code's Remote-SSH extension can see Lima-managed hosts.
 
 Safe to re-run: it refreshes the shared template file but never touches your per-project VMs or their secrets.
 
@@ -95,7 +98,7 @@ README.md                   This file
 ./test.sh unit -- -k test_new   # forward extra args straight to pytest
 ```
 
-`tools/check` runs the whole gate: `shellcheck`, the full test suite, and `mypy`. Pass `--no-vm` to skip the integration tier where Lima isn't installed, such as inside a claudevm guest.
+`tools/check` runs the whole gate: `shellcheck`, the full test suite, and `mypy`. The integration tier runs on macOS and Linux hosts with Lima. Pass `--no-vm` to skip it where Lima isn't installed, such as inside a claudevm guest.
 
 `test.sh` manages its own virtualenv under `.venv/` (created and kept up to date automatically) — there's no separate setup step, and no need to invoke `pytest` directly.
 
@@ -108,4 +111,4 @@ Older versions of claudevm restricted VMs' outbound network access with an in-gu
 ## Limitations
 
 - **Outbound network access is unrestricted.** Anything running in a VM, Claude Code itself or any dependency it installs via `npm`/`pip`/`go get`, can send that VM's project code and tokens anywhere on the internet. The boundary that holds is the VM itself: a compromised guest still can't reach your host credentials or other projects, only what's scoped to that one VM.
-- First `claudevm up` downloads the Ubuntu cloud image, so it's slower the first time on a given Mac; later VMs reuse the cache.
+- First `claudevm up` downloads the Ubuntu cloud image, so it's slower the first time on a given host; later VMs reuse the cache.

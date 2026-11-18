@@ -62,18 +62,38 @@ commits the merge. Its contract:
 
 ### `--no-vm`
 
-The integration tier boots real Lima VMs, so it runs only on the macOS
-host. A session inside a claudevm guest has no `limactl` and cannot run
-it. `tools/check --no-vm` runs everything except the integration tier.
+The integration tier boots real Lima VMs, so it runs only on a macOS or
+Linux host with Lima. A session inside a claudevm guest has no `limactl`
+and cannot run it. `tools/check --no-vm` runs everything except the
+integration tier.
 
-- `/work`, the reviewer, and `/ship` pass `--no-vm` only when `limactl`
-  is not on `PATH`, and say so in the review round or ship report.
-- `/ship` under `--no-vm`, when `git diff --name-only main...cv-XXX`
-  touches `claudevm`, `claude-sandbox.yaml`, `install.sh` or
-  `tests/`: after the `--no-vm` run passes on the merged
-  tree, leave the merge uncommitted and ask the user to run `tools/check`
-  on the Mac in the same tree (the repo is a host mount). Commit the merge
-  on the user's report of green; on red, `git merge --abort`.
+- `/work` and the reviewer pass `--no-vm` only when `limactl` is not on
+  `PATH`, and say so in the review round.
+- `/ship` always runs `tools/check --no-vm` on the merged tree, on its own
+  host only. The full runs happened on the branch (§ Host checks), and a
+  ship-time hygiene edit touches only prose.
+
+### Host checks
+
+A branch is VM-affecting when `git diff --name-only main...cv-XXX`
+touches `claudevm`, `claude-sandbox.yaml`, `install.sh` or `tests/`. The
+integration tier has two host platforms, so a VM-affecting branch ships
+only after a full `tools/check` passes on both.
+
+- After an APPROVED round on a VM-affecting branch, `/work` asks the user
+  to run the full `tools/check` on a macOS host and on a Linux host at the
+  approved commit: the branch head once the verdict is committed. On both
+  green, it appends this line to `## Review log` below that round, with
+  the full sha, and commits:
+
+      Host checks at <sha>: macOS green, Linux green
+
+- On either red, the branch goes back to implementing: fix the failure,
+  then a new review round, then host checks again at the new approved
+  commit.
+- `/ship` refuses a VM-affecting branch when that line is missing, or when
+  `git diff --name-only <sha> cv-XXX` at `/ship` start lists any file
+  besides the task file.
 
 Run a slow check once per checkpoint. Save its output and exit status, for
 example `tools/check > "$out" 2>&1; echo "exit=$?"`, then read that file as

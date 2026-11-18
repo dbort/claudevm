@@ -19,7 +19,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$REPO_DIR/.venv"
 
 if ! command -v python3 >/dev/null 2>&1; then
-  echo "python3 not found. Install it (e.g. via Homebrew: brew install python3), then re-run ./test.sh." >&2
+  echo "python3 not found. Install it (brew install python3, or your distro's python3 package), then re-run ./test.sh." >&2
   exit 1
 fi
 
