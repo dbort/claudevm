@@ -160,3 +160,9 @@ VM-affecting branch ships. Testing happens on Fedora 45 (AMD Ryzen 7 2700).
 - **N5: install.sh re-matches its own `missing` string with `case` globs** (`install.sh:62-75`): a flag per check is simpler.
 
 `tools/check --no-vm` (no `limactl` in this guest): passed.
+
+### Round 2: APPROVED
+- **N1: The general check-running paragraph now sits under the Host checks heading** (`.claude/docs/pipeline.md:98`): "Run a slow check once per checkpoint..." applies to all of § Checks; move it under `## Checks` or after the `--no-vm` bullets.
+- **N2: The derived status skips the pending host checks** (`.claude/docs/pipeline.md:111`): § Status and `tools/task_status.py` report "awaiting `/ship`" once the last round is APPROVED, before the `Host checks` line exists.
+
+All round 1 findings addressed. `tools/check --no-vm` (no `limactl` in this guest): passed.
