@@ -146,7 +146,10 @@ VM-affecting branch ships. Testing happens on Fedora 45 (AMD Ryzen 7 2700).
 - [x] Host-check rule in `pipeline.md`, `work` and `ship` skills,
   `CLAUDE.md`.
 - [x] README and `CLAUDE.md` name both hosts; `test.sh` python3 hint.
-- [ ] `tools/check --no-vm` green, review.
+- [x] `tools/check --no-vm` green, review.
+- [x] Per-host venvs under `.venv/` (`tools/venv`): the first Fedora host
+  check failed because the guest-built `.venv` resolved to Fedora's
+  Python and found no site-packages.
 - [ ] Host checks on macOS and Fedora 45; manual QA on Fedora 45.
 
 ## Review log

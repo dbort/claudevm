@@ -38,21 +38,22 @@ fi
 
 echo "==> shellcheck"
 if command -v shellcheck >/dev/null 2>&1; then
-  shellcheck claudevm install.sh test.sh pre-push-branch-guard.sh tools/check ||
+  shellcheck claudevm install.sh test.sh pre-push-branch-guard.sh tools/check tools/venv ||
     fail "shellcheck"
 else
   fail "shellcheck not found (brew install shellcheck / apt install shellcheck)"
 fi
 
-# test.sh also creates and updates .venv, which provides mypy below.
+# test.sh also creates and updates the venv that provides mypy below.
 echo "==> tests ($tier)"
 ./test.sh "$tier" || fail "tests"
 
 echo "==> mypy --strict"
-if [ -x .venv/bin/mypy ]; then
+venv="$(tools/venv)" || venv=""
+if [ -n "$venv" ] && [ -x "$venv/bin/mypy" ]; then
   # mypy's default SQLite cache fails with "file is not a database" when the
   # repo sits on a Lima 9p mount, as it does inside a claudevm guest.
-  .venv/bin/mypy --strict --no-sqlite-cache tools/task_status.py || fail "mypy"
+  "$venv/bin/mypy" --strict --no-sqlite-cache tools/task_status.py || fail "mypy"
 else
   fail "mypy not found in .venv (see test.sh output above)"
 fi

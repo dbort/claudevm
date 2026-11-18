@@ -16,25 +16,7 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="$REPO_DIR/.venv"
-
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "python3 not found. Install it (brew install python3, or your distro's python3 package), then re-run ./test.sh." >&2
-  exit 1
-fi
-
-if [ ! -x "$VENV_DIR/bin/python3" ]; then
-  echo "==> Setting up test virtualenv at $VENV_DIR"
-  python3 -m venv "$VENV_DIR"
-fi
-
-# Reinstall whenever requirements.txt changes, not just on first run.
-STAMP="$VENV_DIR/.requirements.stamp"
-if [ ! -f "$STAMP" ] || [ "$REPO_DIR/tests/requirements.txt" -nt "$STAMP" ]; then
-  echo "==> Installing test dependencies"
-  "$VENV_DIR/bin/pip" install -q -r "$REPO_DIR/tests/requirements.txt"
-  touch "$STAMP"
-fi
+VENV_DIR="$("$REPO_DIR/tools/venv")"
 
 mode="all"
 if [ $# -gt 0 ] && [ "$1" != "--" ]; then
