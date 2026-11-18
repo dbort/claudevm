@@ -177,3 +177,5 @@ All round 1 findings addressed. `tools/check --no-vm` (no `limactl` in this gues
 - **N4: Existing checkouts keep a stale root venv** (`tools/venv:21`): harmless; `rm -rf .venv` clears it.
 
 `tools/check --no-vm` (no `limactl` in this guest): passed.
+
+Host checks at 406ad2447135965c5927ff0fc9e12b361c82905c: macOS green, Linux green
