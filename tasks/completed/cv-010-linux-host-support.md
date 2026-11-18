@@ -14,31 +14,31 @@ host platforms, the pipeline also requires a full check on both before a
 VM-affecting branch ships. Testing happens on Fedora 45 (AMD Ryzen 7 2700).
 
 ## Must Have
-- [ ] On Linux, `install.sh` checks for `limactl`, `qemu-system-$(uname -m)`
+- [x] On Linux, `install.sh` checks for `limactl`, `qemu-system-$(uname -m)`
   and `jq`, plus read/write access to `/dev/kvm`. If any are missing, it
   exits nonzero before installing anything and names every missing item,
   not just the first. When `dnf` is on `PATH` it prints one
   `sudo dnf install ...` line for the missing packages. A missing
   `limactl` gets a pointer to Lima's install instructions. It never runs
   `sudo`, `dnf` or `brew` itself.
-- [ ] On Linux with every dependency present, `install.sh` installs the
+- [x] On Linux with every dependency present, `install.sh` installs the
   template, the command and the SSH `Include` the same way it does on
   macOS.
-- [ ] On macOS, `install.sh` still installs a missing Lima via Homebrew,
+- [x] On macOS, `install.sh` still installs a missing Lima via Homebrew,
   and it also installs a missing `jq` the same way.
-- [ ] On Linux, `claudevm up` exits nonzero with a message naming
+- [x] On Linux, `claudevm up` exits nonzero with a message naming
   `/dev/kvm` when that device is not readable and writable, on both the
   create and resume paths, and never invokes `limactl`. On macOS it makes
   no such check.
-- [ ] `claudevm code` behaves the same on both platforms. Without `code` on
+- [x] `claudevm code` behaves the same on both platforms. Without `code` on
   `PATH` it prints the current error message, word for word.
-- [ ] The integration tier's isolated `LIMA_HOME` lives under a directory
+- [x] The integration tier's isolated `LIMA_HOME` lives under a directory
   that exists on both macOS and Linux and stays short enough for Lima's SSH
   control socket path.
-- [ ] `tools/check` passes in full, integration tier included, on the Mac
+- [x] `tools/check` passes in full, integration tier included, on the Mac
   and on the Fedora 45 host at the approved commit, recorded per the new
   host-check rule below.
-- [ ] `.claude/docs/pipeline.md` § Checks, the `work` and `ship` skills,
+- [x] `.claude/docs/pipeline.md` § Checks, the `work` and `ship` skills,
   and `CLAUDE.md` adopt the host-check rule. When `git diff --name-only
   main...cv-XXX` touches `claudevm`, `claude-sandbox.yaml`, `install.sh` or
   `tests/`: after an APPROVED round, `/work` asks the user to run the full
@@ -48,7 +48,7 @@ VM-affecting branch ships. Testing happens on Fedora 45 (AMD Ryzen 7 2700).
   diff from `<sha>` to the branch head at `/ship` start touches anything
   besides the task file. `/ship` runs `tools/check --no-vm` on the merged
   tree, on its own host only, and no longer asks for a Mac run there.
-- [ ] The README lists both supported hosts: Apple Silicon Mac on macOS 13+
+- [x] The README lists both supported hosts: Apple Silicon Mac on macOS 13+
   with Homebrew, and Linux (x86_64 or aarch64) with Lima, QEMU, `jq` and
   read/write access to `/dev/kvm`, tested on Fedora. It says `install.sh`
   prints install steps on Linux rather than installing anything, and that
@@ -56,9 +56,9 @@ VM-affecting branch ships. Testing happens on Fedora 45 (AMD Ryzen 7 2700).
   `PATH`. Its "why a VM" section covers Linux hosts too, and its
   Limitations line about the first boot downloading the image no longer
   says "Mac".
-- [ ] `CLAUDE.md`'s project description and Tests bullet name macOS and
+- [x] `CLAUDE.md`'s project description and Tests bullet name macOS and
   Linux hosts.
-- [ ] Manual QA on Fedora 45: `claudevm new`, `secrets`, `up`, `ssh` and
+- [x] Manual QA on Fedora 45: `claudevm new`, `secrets`, `up`, `ssh` and
   `code` work, and VS Code Remote-SSH reaches `/workspace`. `/workspace` is
   writable, and files the guest creates there are owned by the host user.
   `git status` and `npm install` in a real project finish in usable time.
@@ -155,7 +155,7 @@ VM-affecting branch ships. Testing happens on Fedora 45 (AMD Ryzen 7 2700).
   Python and found no site-packages.
 - [x] Round 3 notes: hostname in the venv key, `tools/venv` in the Stack
   bullet, `pipeline.md` paragraph placement and status caveat.
-- [ ] Host checks on macOS and Fedora 45; manual QA on Fedora 45.
+- [x] Host checks on macOS and Fedora 45; manual QA on Fedora 45.
 
 ## Review log
 
