@@ -150,3 +150,13 @@ VM-affecting branch ships. Testing happens on Fedora 45 (AMD Ryzen 7 2700).
 - [ ] Host checks on macOS and Fedora 45; manual QA on Fedora 45.
 
 ## Review log
+
+### Round 1: REJECTED
+- **F1: Only the missing-device case of the KVM rule is tested** (`tests/test_up.py:91`, `tests/test_install.py:117`, `tests/test_install.py:142`): every `kvm=False` case points `CLAUDEVM_KVM_DEVICE` at a nonexistent path, so an existing but inaccessible device (root:kvm 0660, user not in `kvm`) is untested; `[ ! -e ]` would pass every test. Add an existing-but-inaccessible case to `test_up.py` and `test_install.py`, skipped as root.
+- **N1: Darwin-only `code` hint in install.sh is untested** (`install.sh:84`): non-blocking.
+- **N2: Em-dash in a changed header line** (`install.sh:3`): a colon fits § Writing style.
+- **N3: Stale fake lists in conftest docstrings** (`tests/conftest.py:5`, `tests/conftest.py:111`): still say only `limactl`/`code` are faked.
+- **N4: Integration `LIMA_HOME` on tmpfs on Fedora** (`tests/conftest.py:215`): test VM disks take RAM on Fedora's tmpfs `/tmp`; look here first if the Fedora host check hits ENOSPC.
+- **N5: install.sh re-matches its own `missing` string with `case` globs** (`install.sh:62-75`): a flag per check is simpler.
+
+`tools/check --no-vm` (no `limactl` in this guest): passed.
