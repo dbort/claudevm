@@ -2,7 +2,7 @@
 
 Unit tests (everything NOT marked @pytest.mark.integration) never touch
 real Lima or the user's real ~/.config/claudevm / ~/.local/var/claudevm --
-`limactl`/`code` are faked (see tests/fakes/) and CLAUDEVM_HOME/
+`limactl`/`code`/`uname` are faked (see tests/fakes/) and CLAUDEVM_HOME/
 CLAUDEVM_INSTANCES point at a fresh temp dir every test.
 
 Integration-tier fixtures (real VM lifecycle) live further down in this
@@ -23,6 +23,26 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CLAUDEVM_BIN = REPO_ROOT / "claudevm"
 FAKES_DIR = REPO_ROOT / "tests" / "fakes"
+
+# Modes for an existing fake KVM device; "missing" means no file at all.
+KVM_MODES = {"rw": 0o600, "unreadable": 0o200, "unwritable": 0o400}
+
+
+def make_kvm_device(directory, kvm):
+    """make_kvm_device(dir, kvm) -> path for CLAUDEVM_KVM_DEVICE.
+
+    kvm is "missing" or a KVM_MODES key. The unreadable and unwritable
+    states skip the calling test as root, which bypasses file modes.
+    """
+    path = directory / f"fake-kvm-{kvm}"
+    if kvm == "missing":
+        return path
+    if kvm != "rw" and os.geteuid() == 0:
+        pytest.skip("file modes do not restrict root")
+    if not path.exists():
+        path.write_text("")
+        path.chmod(KVM_MODES[kvm])
+    return path
 
 
 @pytest.fixture
@@ -108,21 +128,19 @@ def run_claudevm(
 ):
     """run_claudevm(["up", "name"], input="...\\n") -> CompletedProcess.
 
-    Runs the real claudevm script with limactl/code faked and
+    Runs the real claudevm script with limactl/code/uname faked and
     HOME/CLAUDEVM_HOME/CLAUDEVM_INSTANCES isolated to this test's own temp
     dirs -- never touches the user's real config, secrets, or dotfiles.
 
     include_code=False puts a PATH with the fake limactl but no `code` on
     it, for testing cmd_code's "not installed" error path.
 
-    platform is what the fake `uname -s` reports. kvm=False points
-    CLAUDEVM_KVM_DEVICE at a path that does not exist; otherwise at a
-    writable file, so the result never depends on the real host's /dev/kvm.
+    platform is what the fake `uname -s` reports. kvm picks the state of
+    the fake device CLAUDEVM_KVM_DEVICE points at (make_kvm_device), so the
+    result never depends on the real host's /dev/kvm.
     """
-    kvm_device = tmp_path / "fake-kvm"
-    kvm_device.write_text("")
 
-    def _run(args, input=None, timeout=30, include_code=True, platform="Linux", kvm=True):
+    def _run(args, input=None, timeout=30, include_code=True, platform="Linux", kvm="rw"):
         env = dict(os.environ)
         if include_code:
             env["PATH"] = f"{FAKES_DIR}:{env.get('PATH', '')}"
@@ -148,7 +166,7 @@ def run_claudevm(
         env["FAKE_CODE_LOG"] = str(fake_code_log)
         env["FAKE_UNAME_S"] = platform
         env["FAKE_UNAME_M"] = "x86_64"
-        env["CLAUDEVM_KVM_DEVICE"] = str(kvm_device if kvm else tmp_path / "no-kvm")
+        env["CLAUDEVM_KVM_DEVICE"] = str(make_kvm_device(tmp_path, kvm))
         return subprocess.run(
             [str(CLAUDEVM_BIN), *args],
             env=env,

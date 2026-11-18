@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# install.sh — set up claudevm on this host (macOS or Linux).
+# install.sh: set up claudevm on this host (macOS or Linux).
 #
 # Safe to re-run: it overwrites the shared template file but never touches
 # your per-project instances under ~/.local/var/claudevm/instances/.
@@ -38,8 +38,11 @@ else
   qemu="qemu-system-$(uname -m)"
   missing=""
   dnf_packages=""
+  need_lima=0
+  need_kvm=0
   if ! command -v limactl >/dev/null 2>&1; then
     missing="$missing limactl"
+    need_lima=1
   fi
   if ! command -v "$qemu" >/dev/null 2>&1; then
     missing="$missing $qemu"
@@ -53,26 +56,23 @@ else
   fi
   if [ ! -r "$KVM_DEVICE" ] || [ ! -w "$KVM_DEVICE" ]; then
     missing="$missing $KVM_DEVICE"
+    need_kvm=1
   fi
 
   if [ -n "$missing" ]; then
     echo "Missing:$missing" >&2
-    case "$missing" in
-      *" limactl"*)
-        # Fedora does not package Lima.
-        echo "Install Lima from https://lima-vm.io/docs/installation/" >&2
-        ;;
-    esac
+    if [ "$need_lima" -eq 1 ]; then
+      # Fedora does not package Lima.
+      echo "Install Lima from https://lima-vm.io/docs/installation/" >&2
+    fi
     if [ -n "$dnf_packages" ] && command -v dnf >/dev/null 2>&1; then
       echo "Install the rest with: sudo dnf install$dnf_packages" >&2
     fi
-    case "$missing" in
-      *" $KVM_DEVICE"*)
-        echo "$KVM_DEVICE must exist and be readable and writable by you: enable" >&2
-        echo "virtualization in your firmware settings, and if the device exists," >&2
-        echo "run 'sudo usermod -aG kvm \$USER' and log in again." >&2
-        ;;
-    esac
+    if [ "$need_kvm" -eq 1 ]; then
+      echo "$KVM_DEVICE must exist and be readable and writable by you: enable" >&2
+      echo "virtualization in your firmware settings, and if the device exists," >&2
+      echo "run 'sudo usermod -aG kvm \$USER' and log in again." >&2
+    fi
     echo "Nothing was installed. Re-run ./install.sh once these are in place." >&2
     exit 1
   fi

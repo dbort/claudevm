@@ -88,34 +88,36 @@ def _new_project(run_claudevm, tmp_path):
     assert result.returncode == 0, result.stderr
 
 
-def test_up_without_kvm_on_linux_fails_before_create(run_claudevm, limactl_calls, tmp_path):
+@pytest.mark.parametrize("kvm", ["missing", "unreadable", "unwritable"])
+def test_up_without_kvm_on_linux_fails_before_create(run_claudevm, limactl_calls, tmp_path, kvm):
     _new_project(run_claudevm, tmp_path)
 
-    result = run_claudevm(["up", "myproject"], kvm=False)
+    result = run_claudevm(["up", "myproject"], kvm=kvm)
 
     assert result.returncode != 0
-    assert str(tmp_path / "no-kvm") in result.stderr
+    assert str(tmp_path / f"fake-kvm-{kvm}") in result.stderr
     assert "KVM" in result.stderr
     assert limactl_calls() == []
 
 
-def test_up_without_kvm_on_linux_fails_before_resume(run_claudevm, limactl_calls, tmp_path):
+@pytest.mark.parametrize("kvm", ["missing", "unreadable", "unwritable"])
+def test_up_without_kvm_on_linux_fails_before_resume(run_claudevm, limactl_calls, tmp_path, kvm):
     _new_project(run_claudevm, tmp_path)
     first_up = run_claudevm(["up", "myproject"])
     assert first_up.returncode == 0, first_up.stderr
     calls_before = len(limactl_calls())
 
-    result = run_claudevm(["up", "myproject"], kvm=False)
+    result = run_claudevm(["up", "myproject"], kvm=kvm)
 
     assert result.returncode != 0
-    assert str(tmp_path / "no-kvm") in result.stderr
+    assert str(tmp_path / f"fake-kvm-{kvm}") in result.stderr
     assert len(limactl_calls()) == calls_before
 
 
 def test_up_on_macos_skips_kvm_check(run_claudevm, limactl_state, tmp_path):
     _new_project(run_claudevm, tmp_path)
 
-    result = run_claudevm(["up", "myproject"], platform="Darwin", kvm=False)
+    result = run_claudevm(["up", "myproject"], platform="Darwin", kvm="missing")
 
     assert result.returncode == 0, result.stderr
     assert limactl_state()["instances"]["myproject"] == "Running"
