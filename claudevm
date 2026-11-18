@@ -24,6 +24,9 @@ INSTANCES_DIR="${CLAUDEVM_INSTANCES:-$HOME/.local/var/claudevm/instances}"
 # Source of ~/.gitconfig/~/.vimrc seeding in cmd_new -- normally your real
 # home, but overridable (e.g. in tests) without affecting anything else.
 DOTFILES_SOURCE="${CLAUDEVM_DOTFILES_SOURCE:-$HOME}"
+# Overridable so tests can stand in for the device; install.sh reads the
+# same variable.
+KVM_DEVICE="${CLAUDEVM_KVM_DEVICE:-/dev/kvm}"
 
 CPUS="${CLAUDEVM_CPUS:-4}"
 MEMORY="${CLAUDEVM_MEMORY:-4}"   # GiB
@@ -48,6 +51,18 @@ require_instance() {
   local name="$1"
   if [ ! -d "$INSTANCES_DIR/$name" ]; then
     echo "No config found for '$name'. Run: claudevm new $name <project-dir>" >&2
+    exit 1
+  fi
+}
+
+require_kvm() {
+  # Without KVM, Lima on Linux silently falls back to TCG emulation, which
+  # is too slow to use. macOS hosts use Apple's Virtualization.framework.
+  [ "$(uname -s)" = "Linux" ] || return 0
+  if [ ! -r "$KVM_DEVICE" ] || [ ! -w "$KVM_DEVICE" ]; then
+    echo "$KVM_DEVICE is missing or not readable and writable by you; Lima needs KVM." >&2
+    echo "Enable virtualization in your firmware settings, and if the device exists," >&2
+    echo "run 'sudo usermod -aG kvm \$USER' and log in again." >&2
     exit 1
   fi
 }
@@ -98,6 +113,7 @@ cmd_new() {
 cmd_up() {
   local name="${1:?instance name required}"
   require_instance "$name"
+  require_kvm
   local cfg_dir="$INSTANCES_DIR/$name"
 
   if limactl list -q 2>/dev/null | grep -qx "$name"; then

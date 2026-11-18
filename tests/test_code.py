@@ -2,20 +2,24 @@
 import pytest
 
 
-def test_code_invokes_vscode_remote_ssh(run_claudevm, code_calls):
-    result = run_claudevm(["code", "myproject"])
+@pytest.mark.parametrize("platform", ["Darwin", "Linux"])
+def test_code_invokes_vscode_remote_ssh(run_claudevm, code_calls, platform):
+    result = run_claudevm(["code", "myproject"], platform=platform)
 
     assert result.returncode == 0, result.stderr
     calls = [c["args"] for c in code_calls()]
     assert calls == [["--remote", "ssh-remote+lima-myproject", "/workspace"]]
 
 
-def test_code_errors_clearly_when_cli_missing(run_claudevm, code_calls):
-    result = run_claudevm(["code", "myproject"], include_code=False)
+@pytest.mark.parametrize("platform", ["Darwin", "Linux"])
+def test_code_errors_clearly_when_cli_missing(run_claudevm, code_calls, platform):
+    result = run_claudevm(["code", "myproject"], include_code=False, platform=platform)
 
     assert result.returncode != 0
-    assert "code" in result.stderr.lower()
-    assert "PATH" in result.stderr
+    assert result.stderr == (
+        "The 'code' CLI isn't on your PATH. In VS Code: Cmd+Shift+P -> "
+        "'Shell Command: Install code command in PATH'.\n"
+    )
     assert code_calls() == []
 
 

@@ -33,6 +33,11 @@ Pipeline rules: `.claude/docs/pipeline.md`.
      go to step 3.
    - REJECTED for the third time in a row without hearing from the user:
      stop and ask the user how to proceed.
-   - APPROVED: stop. Report that the task awaits `/ship cv-XXX`.
+   - APPROVED on a VM-affecting branch: ask the user for host checks
+     at the approved commit and record them (`pipeline.md` § Host
+     checks). On both green, stop and report that the task awaits
+     `/ship cv-XXX`. On either red, go to step 3.
+   - APPROVED otherwise: stop. Report that the task awaits `/ship
+     cv-XXX`.
 
 Report the rounds this run took, one line each.

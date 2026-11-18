@@ -2,7 +2,7 @@
 
 Unit tests (everything NOT marked @pytest.mark.integration) never touch
 real Lima or the user's real ~/.config/claudevm / ~/.local/var/claudevm --
-`limactl`/`code` are faked (see tests/fakes/) and CLAUDEVM_HOME/
+`limactl`/`code`/`uname` are faked (see tests/fakes/) and CLAUDEVM_HOME/
 CLAUDEVM_INSTANCES point at a fresh temp dir every test.
 
 Integration-tier fixtures (real VM lifecycle) live further down in this
@@ -23,6 +23,26 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CLAUDEVM_BIN = REPO_ROOT / "claudevm"
 FAKES_DIR = REPO_ROOT / "tests" / "fakes"
+
+# Modes for an existing fake KVM device; "missing" means no file at all.
+KVM_MODES = {"rw": 0o600, "unreadable": 0o200, "unwritable": 0o400}
+
+
+def make_kvm_device(directory, kvm):
+    """make_kvm_device(directory, kvm) -> path for CLAUDEVM_KVM_DEVICE.
+
+    kvm is "missing" or a KVM_MODES key. The unreadable and unwritable
+    states skip the calling test as root, which bypasses file modes.
+    """
+    path = directory / f"fake-kvm-{kvm}"
+    if kvm == "missing":
+        return path
+    if kvm != "rw" and os.geteuid() == 0:
+        pytest.skip("file modes do not restrict root")
+    if not path.exists():
+        path.write_text("")
+        path.chmod(KVM_MODES[kvm])
+    return path
 
 
 @pytest.fixture
@@ -108,15 +128,19 @@ def run_claudevm(
 ):
     """run_claudevm(["up", "name"], input="...\\n") -> CompletedProcess.
 
-    Runs the real claudevm script with limactl/code faked and
+    Runs the real claudevm script with limactl/code/uname faked and
     HOME/CLAUDEVM_HOME/CLAUDEVM_INSTANCES isolated to this test's own temp
     dirs -- never touches the user's real config, secrets, or dotfiles.
 
     include_code=False puts a PATH with the fake limactl but no `code` on
     it, for testing cmd_code's "not installed" error path.
+
+    platform is what the fake `uname -s` reports. kvm picks the state of
+    the fake device CLAUDEVM_KVM_DEVICE points at (make_kvm_device), so the
+    result never depends on the real host's /dev/kvm.
     """
 
-    def _run(args, input=None, timeout=30, include_code=True):
+    def _run(args, input=None, timeout=30, include_code=True, platform="Linux", kvm="rw"):
         env = dict(os.environ)
         if include_code:
             env["PATH"] = f"{FAKES_DIR}:{env.get('PATH', '')}"
@@ -130,6 +154,7 @@ def run_claudevm(
             if not bin_dir.exists():
                 bin_dir.mkdir()
                 (bin_dir / "limactl").symlink_to(FAKES_DIR / "limactl")
+                (bin_dir / "uname").symlink_to(FAKES_DIR / "uname")
             real_dirs = env.get("PATH", "").split(os.pathsep)
             filtered_dirs = [d for d in real_dirs if not os.path.isfile(os.path.join(d, "code"))]
             env["PATH"] = os.pathsep.join([str(bin_dir), *filtered_dirs])
@@ -139,6 +164,9 @@ def run_claudevm(
         env["FAKE_LIMACTL_STATE"] = str(fake_limactl_state)
         env["FAKE_LIMACTL_LOG"] = str(fake_limactl_log)
         env["FAKE_CODE_LOG"] = str(fake_code_log)
+        env["FAKE_UNAME_S"] = platform
+        env["FAKE_UNAME_M"] = "x86_64"
+        env["CLAUDEVM_KVM_DEVICE"] = str(make_kvm_device(tmp_path, kvm))
         return subprocess.run(
             [str(CLAUDEVM_BIN), *args],
             env=env,
@@ -199,9 +227,10 @@ def real_lima_home():
     enough (/private/var/folders/.../pytest-of-<user>/pytest-<N>/...) that
     Lima's own SSH control socket path -- <LIMA_HOME>/<instance>/ssh.sock.*
     -- exceeds macOS's 104-char UNIX_PATH_MAX, confirmed by a real failure
-    here. /private/tmp is short enough to leave headroom for that suffix.
+    here. Linux's limit is 108. The resolved /tmp (/private/tmp on macOS)
+    is short enough on both to leave headroom for that suffix.
     """
-    d = tempfile.mkdtemp(dir="/private/tmp", prefix="claudevm-lima-home-")
+    d = tempfile.mkdtemp(dir=os.path.realpath("/tmp"), prefix="claudevm-lima-home-")
     yield Path(d)
     shutil.rmtree(d, ignore_errors=True)
 
@@ -228,7 +257,11 @@ def real_dotfiles_source(tmp_path_factory):
 
 @pytest.fixture(scope="session")
 def run_real_claudevm(
-    real_claudevm_home, real_claudevm_instances_dir, real_lima_home, real_dotfiles_source
+    real_claudevm_home,
+    real_claudevm_instances_dir,
+    real_lima_home,
+    real_dotfiles_source,
+    tmp_path_factory,
 ):
     """run_real_claudevm(["up", "name"]) -> CompletedProcess.
 
@@ -238,6 +271,9 @@ def run_real_claudevm(
     override per call.
     """
 
+    fake_code_dir = tmp_path_factory.mktemp("fake-code-only")
+    (fake_code_dir / "code").symlink_to(FAKES_DIR / "code")
+
     def _run(args, input=None, timeout=600, fake_code=False):
         env = dict(os.environ)
         env["CLAUDEVM_HOME"] = str(real_claudevm_home)
@@ -246,8 +282,9 @@ def run_real_claudevm(
         env["CLAUDEVM_DOTFILES_SOURCE"] = str(real_dotfiles_source)
         if fake_code:
             # Real limactl, but `code` faked -- exercises cmd_code's actual
-            # invocation without launching a real VS Code window.
-            env["PATH"] = f"{FAKES_DIR}:{env.get('PATH', '')}"
+            # invocation without launching a real VS Code window. Only
+            # `code`: FAKES_DIR also holds fakes for limactl and uname.
+            env["PATH"] = f"{fake_code_dir}:{env.get('PATH', '')}"
             env["FAKE_CODE_LOG"] = str(real_claudevm_home / "fake-code-log.jsonl")
         return subprocess.run(
             [str(CLAUDEVM_BIN), *args],

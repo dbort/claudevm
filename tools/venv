@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#
+# Prints the path of this host's test virtualenv after creating it or
+# reinstalling tests/requirements.txt as needed. Progress goes to stderr.
+#
+# Each host, OS, architecture and Python version gets its own directory
+# under .venv/: a claudevm guest and its host share this tree through the
+# project mount, a venv works only with the interpreter that built it and
+# at the path it was built at, and the two sides may mount the tree at
+# different paths.
+#
+# Must stay bash 3.2 compatible: it runs on stock macOS as well as Linux.
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 not found. Install it (brew install python3, or your distro's python3 package), then re-run." >&2
+  exit 1
+fi
+
+py_version="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+host="$(uname -n)"
+# Keep the name a single safe path component whatever the hostname holds.
+host="${host//[^A-Za-z0-9._-]/_}"
+VENV_DIR="$REPO_DIR/.venv/$host-$(uname -s)-$(uname -m)-py$py_version"
+
+if [ ! -x "$VENV_DIR/bin/python3" ]; then
+  echo "==> Setting up test virtualenv at $VENV_DIR" >&2
+  python3 -m venv "$VENV_DIR" >&2
+fi
+
+# Reinstall whenever requirements.txt changes, not just on first run.
+STAMP="$VENV_DIR/.requirements.stamp"
+if [ ! -f "$STAMP" ] || [ "$REPO_DIR/tests/requirements.txt" -nt "$STAMP" ]; then
+  echo "==> Installing test dependencies" >&2
+  "$VENV_DIR/bin/pip" install -q -r "$REPO_DIR/tests/requirements.txt" >&2
+  touch "$STAMP"
+fi
+
+echo "$VENV_DIR"

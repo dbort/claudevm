@@ -42,7 +42,10 @@ its message.
   the `/workspace` host mount ("Write verification failed ... is 0 bytes
   on disk"), while a third Edit in the same run wrote correctly. The
   files were committed, so `git checkout --` restored them and the main
-  session reapplied the edits with a Python write. Cause not found.
+  session reapplied the edits with a Python write. During cv-010's
+  `/work` the main session's own Edit did the same to `CLAUDE.md`, on a
+  9p project mount from a Linux host, so it is not specific to
+  subagents or to the macOS host. Cause not found.
   Simpler if: the rendered Lima config's project mount (`cmd_up` in
   `claudevm`) used a mount type that handles the Edit tool's write
   pattern, once the cause is known.

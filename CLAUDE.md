@@ -1,8 +1,8 @@
 # Agent Instructions
 
-claudevm creates per-project, isolated Lima VMs on Apple Silicon Macs for
-running Claude Code sessions, with per-VM credentials and none of the
-host's. It is for one developer
+claudevm creates per-project, isolated Lima VMs on Apple Silicon Macs and
+Linux hosts with KVM for running Claude Code sessions, with per-VM
+credentials and none of the host's. It is for one developer
 sandboxing their own projects. `README.md` covers what it does and how to
 use it.
 
@@ -28,11 +28,11 @@ destination).
 
 ## Project conventions
 
-- **Stack.** `claudevm`, `install.sh`, `test.sh` and `tools/check` are
-  bash and must run under bash 3.2 (stock macOS `/bin/bash`) as well as
-  Linux. `claude-sandbox.yaml` is a self-contained Lima template whose
-  provisioning scripts run as root in the Ubuntu guest. Tests and repo
-  tooling are Python.
+- **Stack.** `claudevm`, `install.sh`, `test.sh`, `tools/check` and
+  `tools/venv` are bash and must run under bash 3.2 (stock macOS
+  `/bin/bash`) as well as Linux. `claude-sandbox.yaml` is a self-contained
+  Lima template whose provisioning scripts run as root in the Ubuntu
+  guest. Tests and repo tooling are Python.
 - **Static checkers.** `shellcheck` on the shell files `tools/check`
   lists; add each new shell script to that list. `mypy --strict` on
   `tools/*.py`. `tests/` and the scripts embedded in
@@ -40,9 +40,11 @@ destination).
   static checks obligation does not cover them until they are.
 - **Tests** run only through `./test.sh` (or `tools/check`), never by
   invoking `pytest` directly: it owns the `.venv`. The unit tier fakes
-  `limactl` and `code` (`tests/fakes/`). The integration tier boots real
-  VMs named `claudevm-test-*` and runs only on the macOS host
-  (`.claude/docs/pipeline.md` § Checks, `--no-vm`).
+  `limactl`, `code` and `uname` (`tests/fakes/`). The integration tier
+  boots real VMs named `claudevm-test-*` and runs only on a macOS or
+  Linux host with Lima. A VM-affecting branch needs a full run on both
+  before it ships (`.claude/docs/pipeline.md` § Checks, `--no-vm` and
+  § Host checks).
 - **Gate prerequisites:** `python3` with the `venv` module, `shellcheck`,
   and, for the full run, Lima. `tools/check` fails, naming the tool, when
   one is missing.

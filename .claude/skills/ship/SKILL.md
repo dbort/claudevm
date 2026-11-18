@@ -14,7 +14,9 @@ Invoking `/ship cv-XXX` is the user's sign-off. Pipeline rules:
    `git branch -d` and stop. If the task is already in `tasks/completed/`
    on the branch, skip to step 4 (a retry after a failed merge).
    Otherwise the task file's last `## Review log` round on `cv-XXX` must
-   be APPROVED.
+   be APPROVED, and a VM-affecting branch must carry a `Host checks at
+   <sha>` line with nothing but the task file changed since `<sha>`
+   (`pipeline.md` § Host checks).
 2. **Hygiene.** On `cv-XXX`, run the `doc-hygiene` skill with
    `--diff=main`. If it made edits and its checks passed, commit them
    (`doc-hygiene: pre-merge pass on cv-XXX`). If its checks failed, stop.
@@ -28,8 +30,7 @@ Invoking `/ship cv-XXX` is the user's sign-off. Pipeline rules:
    `git mv` moves the index's blob, not the file on disk.
 4. **Merge.** `git checkout main`, then `git merge --no-commit --no-ff
    cv-XXX`. On conflicts, stop and leave them for the user. Run
-   `tools/check` on the merged tree. Under `--no-vm`, follow
-   `pipeline.md` § Checks before committing the merge.
+   `tools/check --no-vm` on the merged tree (`pipeline.md` § Checks).
    - Green: commit `Merge cv-XXX: <title>`, then `git branch -d cv-XXX`
      (never `-D`).
    - Red: `git merge --abort`, report the failing check, and stop. The
