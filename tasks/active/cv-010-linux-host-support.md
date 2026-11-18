@@ -169,3 +169,11 @@ VM-affecting branch ships. Testing happens on Fedora 45 (AMD Ryzen 7 2700).
 - **N2: The derived status skips the pending host checks** (`.claude/docs/pipeline.md:111`): § Status and `tools/task_status.py` report "awaiting `/ship`" once the last round is APPROVED, before the `Host checks` line exists.
 
 All round 1 findings addressed. `tools/check --no-vm` (no `limactl` in this guest): passed.
+
+### Round 3: APPROVED
+- **N1: Same-version Linux guest and host still share a venv** (`tools/venv:21`): the key omits the repo path, so a guest and host on the same Python minor version share a venv whose absolute shebangs fail loudly ("bad interpreter") when the mount path differs. Calling `"$VENV_DIR/bin/python3" -m pytest|mypy|pip`, or adding the repo path to the key, avoids it.
+- **N2: The Stack bullet's bash 3.2 list leaves out `tools/venv`** (`CLAUDE.md:31-32`).
+- **N3: Round 2's notes are still open** (`.claude/docs/pipeline.md:98`, `.claude/docs/pipeline.md:111`).
+- **N4: Existing checkouts keep a stale root venv** (`tools/venv:21`): harmless; `rm -rf .venv` clears it.
+
+`tools/check --no-vm` (no `limactl` in this guest): passed.
