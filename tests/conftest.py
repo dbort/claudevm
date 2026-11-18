@@ -29,7 +29,7 @@ KVM_MODES = {"rw": 0o600, "unreadable": 0o200, "unwritable": 0o400}
 
 
 def make_kvm_device(directory, kvm):
-    """make_kvm_device(dir, kvm) -> path for CLAUDEVM_KVM_DEVICE.
+    """make_kvm_device(directory, kvm) -> path for CLAUDEVM_KVM_DEVICE.
 
     kvm is "missing" or a KVM_MODES key. The unreadable and unwritable
     states skip the calling test as root, which bypasses file modes.

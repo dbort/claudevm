@@ -5,8 +5,9 @@
 #
 # Each host, OS, architecture and Python version gets its own directory
 # under .venv/: a claudevm guest and its host share this tree through the
-# project mount, and a venv works only with the interpreter that built it
-# and at the path it was built at, which the two sides may mount it under.
+# project mount, a venv works only with the interpreter that built it and
+# at the path it was built at, and the two sides may mount the tree at
+# different paths.
 #
 # Must stay bash 3.2 compatible: it runs on stock macOS as well as Linux.
 set -euo pipefail

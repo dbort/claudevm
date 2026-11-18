@@ -36,10 +36,8 @@ esac
 def install_env(tmp_path, fake_home):
     """install_env(tools, platform=..., machine=..., kvm=...) -> (env, log).
 
-    kvm is a make_kvm_device state.
-
     tools names the stubbed commands to put on PATH. Every stub appends
-    "<name> <args>" to log when run.
+    "<name> <args>" to log when run. kvm is a make_kvm_device state.
     """
     log = tmp_path / "install-tool-log.txt"
     log.write_text("")

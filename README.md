@@ -25,7 +25,7 @@ cd claudevm-kit
 ./install.sh
 ```
 
-On macOS, this installs Lima and `jq` via Homebrew if they're missing. On Linux, it installs nothing: if a dependency is missing, it lists everything missing, prints the steps to install it (a `sudo dnf install` line where `dnf` exists), and exits. With dependencies in place, it copies the VM template to `~/.config/claudevm/`, installs the `claudevm` command onto your `PATH`, and adds an `Include` line to `~/.ssh/config` so VS Code's Remote-SSH extension can see Lima-managed hosts.
+On macOS, this installs Lima and `jq` via Homebrew if they're missing. On Linux, it installs nothing: if a dependency is missing, it lists everything missing, prints the steps to install it, and exits. With dependencies in place, it copies the VM template to `~/.config/claudevm/`, installs the `claudevm` command onto your `PATH`, and adds an `Include` line to `~/.ssh/config` so VS Code's Remote-SSH extension can see Lima-managed hosts.
 
 Safe to re-run: it refreshes the shared template file but never touches your per-project VMs or their secrets.
 
