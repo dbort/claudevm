@@ -190,3 +190,5 @@ Host checks at 406ad2447135965c5927ff0fc9e12b361c82905c: macOS green, Linux gree
 - **N2: A macOS hostname can change from network to network** (`tools/venv:36-39`): a DHCP-assigned name leaves an old venv behind; harmless clutter that `rm -rf .venv` clears.
 
 Round 3's notes addressed. `tools/check --no-vm` (no `limactl` in this guest): passed.
+
+Host checks at 6d566eeab6adca05c4ea8c37c15833a153c02b2e: macOS green, Linux green
