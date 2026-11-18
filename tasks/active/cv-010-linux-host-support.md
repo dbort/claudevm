@@ -184,3 +184,9 @@ All round 1 findings addressed. `tools/check --no-vm` (no `limactl` in this gues
 `tools/check --no-vm` (no `limactl` in this guest): passed.
 
 Host checks at 406ad2447135965c5927ff0fc9e12b361c82905c: macOS green, Linux green
+
+### Round 4: APPROVED
+- **N1: The Stack bullet's rewrap left an overlong line** (`CLAUDE.md:32`): 88 characters where the paragraph wraps near 76.
+- **N2: A macOS hostname can change from network to network** (`tools/venv:36-39`): a DHCP-assigned name leaves an old venv behind; harmless clutter that `rm -rf .venv` clears.
+
+Round 3's notes addressed. `tools/check --no-vm` (no `limactl` in this guest): passed.
