@@ -193,6 +193,9 @@ package selection" pattern.
     mechanism already covers projects that need more room; bumping the
     global default would raise the cost for every project, including ones
     that never touch Docker or Go.
+    *2026-11-19: superseded by cv-012, which scales the CPU and memory
+    defaults with the host (`default_cpus` and `default_memory_gib` in
+    `claudevm`). The disk default and the overrides are unchanged.*
 12. **Verification bar before marking this "Done"**: automated integration
     tests written against `cv-004`'s pytest integration-tier infrastructure
     (the session-scoped, `claudevm-test-*`-namespaced real-VM fixtures), run

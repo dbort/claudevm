@@ -193,7 +193,7 @@ def test_real_instance_has_zram_swap(run_real_claudevm, shared_instance):
 def test_up_renders_template_plus_mounts(
     run_claudevm, claudevm_home, claudevm_instances_dir, tmp_path, platform, mount_type
 ):
-    # Darwin's render is exactly what it was before Linux moved to virtiofs.
+    # Darwin's render carries no mountType: vz defaults to virtiofs.
     project_dir = tmp_path / "proj"
     project_dir.mkdir()
     run_claudevm(["new", "myproject", str(project_dir)])
