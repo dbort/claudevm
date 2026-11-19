@@ -124,7 +124,7 @@ cmd_up() {
 
     # Render a per-instance config: the shared template plus an explicit
     # `mounts:` list, so the VM only ever sees the project dir and its own
-    # config -- never Lima's built-in default mounts (which include
+    # config, never Lima's built-in default mounts (which include
     # the host's home directory). Built via plain file concatenation, not a
     # CLI `--mount` flag, since that flag's accepted syntax isn't consistent
     # across Lima versions and silently falling back to Lima's defaults is

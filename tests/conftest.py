@@ -130,7 +130,7 @@ def run_claudevm(
 
     Runs the real claudevm script with limactl/code/uname faked and
     HOME/CLAUDEVM_HOME/CLAUDEVM_INSTANCES isolated to this test's own temp
-    dirs -- never touches the user's real config or dotfiles.
+    dirs, so it never touches the user's real config or dotfiles.
 
     include_code=False puts a PATH with the fake limactl but no `code` on
     it, for testing cmd_code's "not installed" error path.
