@@ -57,6 +57,7 @@ every VM, and gives the few existing VMs a one-off migration path.
 - cv-011 also edits `claude-sandbox.yaml` provisioning; whichever lands second rebases its step around the other's. The migration script picks up cv-011's install if cv-011 has landed by then.
 - 2026-11-19: Manual QA's ownership and no-AVC checks came from the benchmark run, which booted a virtiofs VM on Fedora, wrote files in `/workspace` from the guest and ran `ausearch -m avc` over the whole run: host-user ownership, `<no matches>`.
 - 2026-11-19: The migration script is `cv-012-migrate.sh` at the checkout root, kept untracked through `.git/info/exclude`, since the host must reach it and this session's guest has no other host-visible path.
+- 2026-11-19: Migration QA, Linux host: `cv-012-migrate.sh` on stopped pre-cv-012 VM `shelving`, then `claudevm up`. Home marker survived; `/workspace` is `virtiofs` with the project; `/dev/zram0` swap active; 8 CPUs, 7 GiB `free -g` total.
 
 ## Checklist
 - [x] Host-scaled CPU and memory defaults in `claudevm`, with `sysctl`/`nproc` fakes and a meminfo override; unit tests per platform for below-floor, mid-range and above-cap hosts, plus the env overrides.
