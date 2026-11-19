@@ -14,11 +14,11 @@ gets none of the host's credentials; how a user authenticates inside a VM
 is their own business, and the repo no longer mentions it.
 
 ## Must Have
-- [ ] `claudevm secrets <name>` fails with the same unknown-command error and usage text as any other unknown command, and `secrets` is absent from `claudevm`'s usage text and header comment.
-- [ ] The per-instance config `claudevm up` renders for a new instance has no `/mnt/claudevm-secrets` mount, and `up` creates no `secrets` directory under the instance config dir (unit test).
-- [ ] A new VM's provisioning writes no `CLAUDE_CODE_OAUTH_TOKEN` or `GH_TOKEN` to `/etc/environment` and sets no `url.https://github.com/.insteadOf` or `credential.https://github.com.helper` git config; the dotfile seeding step still runs.
-- [ ] `tests/test_secrets.py` is deleted, and no test asserts on a secrets mount or directory.
-- [ ] Outside `tasks/completed/` and `tasks/abandoned/`, `git grep -i -E 'secret|claude_oauth|gh_api_token|GH_TOKEN|setup-token'` finds nothing that refers to claudevm's secrets handling. The repo reads as though the feature never existed: no migration note, no mention of existing VMs that still have a secrets mount.
+- [x] `claudevm secrets <name>` fails with the same unknown-command error and usage text as any other unknown command, and `secrets` is absent from `claudevm`'s usage text and header comment.
+- [x] The per-instance config `claudevm up` renders for a new instance has no `/mnt/claudevm-secrets` mount, and `up` creates no `secrets` directory under the instance config dir (unit test).
+- [x] A new VM's provisioning writes no `CLAUDE_CODE_OAUTH_TOKEN` or `GH_TOKEN` to `/etc/environment` and sets no `url.https://github.com/.insteadOf` or `credential.https://github.com.helper` git config; the dotfile seeding step still runs.
+- [x] `tests/test_secrets.py` is deleted, and no test asserts on a secrets mount or directory.
+- [x] Outside `tasks/completed/` and `tasks/abandoned/`, `git grep -i -E 'secret|claude_oauth|gh_api_token|GH_TOKEN|setup-token'` finds nothing that refers to claudevm's secrets handling. The repo reads as though the feature never existed: no migration note, no mention of existing VMs that still have a secrets mount.
 
 ## Decisions
 - No replacement credential mechanism and no doc guidance on in-VM auth. The user treats authentication inside a VM as outside claudevm's scope.
