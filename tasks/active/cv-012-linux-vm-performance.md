@@ -80,3 +80,9 @@ every VM, and gives the few existing VMs a one-off migration path.
 - **N6: History wording in a test comment** (`tests/test_up.py`, `test_up_renders_template_plus_mounts`): state the current rule instead of "before Linux moved to virtiofs".
 
 `tools/check --no-vm` green (`limactl` not on `PATH`).
+
+### Round 2: APPROVED
+- **N1: `--no-vm` run** (`tools/check`): `limactl` is not on `PATH`; `test_real_instance_has_zram_swap` and `test_real_instance_workspace_mount_type` (`tests/test_up.py`) still need § Host checks on both platforms.
+- **N2: Migration Must Have still open** (Must Have 8): the manual QA with `cv-012-migrate.sh`, once per host platform, is recorded with the host checks before `/ship`.
+
+Round 1's N3 cleanup, N5 and N6 are addressed; nothing else changed since round 1. `tools/check --no-vm` green (`limactl` not on `PATH`).
