@@ -1,0 +1,45 @@
+---
+id: cv-013
+title: "Remove secrets management"
+---
+
+# cv-013: Remove secrets management
+
+## Summary
+claudevm stops handling credentials at all. The `secrets` command, the
+per-instance secrets mount, and the provisioning that injects a Claude
+token and a GitHub token into the VM go away, along with the git HTTPS
+rewrite and credential helper that served the GitHub token. A VM still
+gets none of the host's credentials; how a user authenticates inside a VM
+is their own business, and the repo no longer mentions it.
+
+## Must Have
+- [ ] `claudevm secrets <name>` fails with the same unknown-command error and usage text as any other unknown command, and `secrets` is absent from `claudevm`'s usage text and header comment.
+- [ ] The per-instance config `claudevm up` renders for a new instance has no `/mnt/claudevm-secrets` mount, and `up` creates no `secrets` directory under the instance config dir (unit test).
+- [ ] A new VM's provisioning writes no `CLAUDE_CODE_OAUTH_TOKEN` or `GH_TOKEN` to `/etc/environment` and sets no `url.https://github.com/.insteadOf` or `credential.https://github.com.helper` git config; the dotfile seeding step still runs.
+- [ ] `tests/test_secrets.py` is deleted, and no test asserts on a secrets mount or directory.
+- [ ] Outside `tasks/completed/` and `tasks/abandoned/`, `git grep -i -E 'secret|claude_oauth|gh_api_token|GH_TOKEN|setup-token'` finds nothing that refers to claudevm's secrets handling. The repo reads as though the feature never existed: no migration note, no mention of existing VMs that still have a secrets mount.
+
+## Decisions
+- No replacement credential mechanism and no doc guidance on in-VM auth. The user treats authentication inside a VM as outside claudevm's scope.
+- Leave existing VMs alone, with no code or doc for them. Their frozen config keeps the secrets mount and provisioning, and that keeps working off whatever token files remain on the host; the user handles those VMs by hand.
+- Remove the `git@github.com` to HTTPS rewrite and the token credential helper along with the tokens. They exist only to serve `GH_TOKEN`, and without it the rewrite would break SSH-key setups made inside the VM.
+- Keep the `/mnt/claudevm-config` mount and dotfile seeding; they are unrelated to credentials.
+- Keep the statement that no host credentials are mounted into a VM. That is the isolation property, not secrets management.
+- `secrets` falls through to the existing unknown-command branch, with no special removal message, so the CLI shows no trace of the feature.
+
+## Notes
+- Known dependents of the names being removed, from a grep at plan time:
+  - `claudevm`: header comment, `usage`, `cmd_secrets`, the `main` dispatch, and `cmd_up`'s secrets dir creation and mount (plus its comment).
+  - `claude-sandbox.yaml`: header comment (the mounts line and item 3), provisioning step 3, and the step 2 comment that mentions the secrets helper.
+  - `install.sh`: the quick-start echo line for `claudevm secrets`.
+  - `README.md`: intro paragraphs, install's "or their secrets" line, Quick start, Commands table, How it works, the whole Credentials section (including the "proportionate protection" and credential-proxy paragraph), Repo layout, the migration section's `claudevm secrets` step, and the Limitations bullet's "and tokens".
+  - `CLAUDE.md`: the opening description ("with per-VM credentials and none of the host's").
+  - Tests: `tests/test_secrets.py`, `tests/test_up.py` (secrets dir and mount assertions), `tests/test_new.py` (integration check for `/mnt/claudevm-secrets`), and the `tests/conftest.py` docstrings that list secrets.
+- Leave `tasks/completed/` and `tasks/abandoned/` as they are: they are the historical record. `.claude/docs/github-actions-hardening.md` mentions tokens and secrets in the GitHub Actions sense, which is unrelated.
+- cv-012's migration script re-renders old VMs from the current template; once this task lands, that re-render drops the secrets mount and provisioning. Its Must Have checks the per-instance mounts `cmd_up` renders, which covers either order. Values a migrated VM already has in `/etc/environment` and its git config stay behind, which matches the decision to leave existing VMs alone.
+- cv-011 is independent: the Claude CLI's first-run login is the user's own step.
+
+## Checklist
+
+## Review log

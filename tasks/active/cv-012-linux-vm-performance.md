@@ -22,7 +22,7 @@ every VM, and gives the few existing VMs a one-off migration path.
 - [ ] On a Linux host, files created in `/workspace` from the guest are owned by the host user on the host, and `ausearch -m avc -ts recent` shows no denials during a boot plus write run (manual QA on Fedora, as in cv-010).
 - [ ] macOS hosts see no mount change: the rendered per-instance config on Darwin has the same `mounts:` section as before this task (unit test), and the full `tools/check` passes on macOS.
 - [ ] If virtiofs is selected, `install.sh` on Linux lists `virtiofsd` among missing dependencies with its dnf package when it is absent (unit test).
-- [ ] An uncommitted migration script, run on a stopped pre-cv-012 VM on each host platform, leaves the VM with the current template's mounts, mount type and provisioning (zram, plus anything else the template now provisions) and the new sizing, while a marker file placed in the guest home before migration survives, secrets still reach `/etc/environment`, and the project is at `/workspace` (manual QA, once per host platform).
+- [ ] An uncommitted migration script, run on a stopped pre-cv-012 VM on each host platform, leaves the VM with the current template's mounts, mount type and provisioning (zram, plus anything else the template now provisions) and the new sizing, while a marker file placed in the guest home before migration survives and the per-instance mounts the current `cmd_up` renders are present, with the project at `/workspace` (manual QA, once per host platform).
 - [ ] `README.md` states that CPU and memory defaults scale with the host up to a cap and names where the formula lives in `claudevm`, instead of giving fixed numbers; if virtiofs is selected, its Linux requirements list `virtiofsd`.
 
 ## Decisions
@@ -44,6 +44,7 @@ every VM, and gives the few existing VMs a one-off migration path.
 - `README.md` states the fixed sizing defaults and the Linux requirement list; `install.sh` holds the Linux missing-dependency list and dnf packages. `tests/test_install.py` covers that list.
 - `.claude/docs/friction-log.md` friction-002 (zero-byte files from Edit on the project mount, seen on 9p from Linux) may change with the mount type. Note the result there if it does.
 - cv-010 decided to leave `mountType` unset and plan nothing about virtiofs; this task's benchmark decision supersedes that for Linux hosts.
+- cv-013 removes the secrets mount and provisioning. If it lands first, the migration's re-render drops them from old VMs; values already in a VM's `/etc/environment` and git config stay behind.
 - cv-011 also edits `claude-sandbox.yaml` provisioning; whichever lands second rebases its step around the other's. The migration script picks up cv-011's install if cv-011 has landed by then.
 
 ## Checklist

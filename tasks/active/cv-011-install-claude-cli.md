@@ -6,8 +6,7 @@ title: "Install the Claude Code CLI in new VMs"
 # cv-011: Install the Claude Code CLI in new VMs
 
 ## Summary
-New VMs get the token for Claude Code but not the `claude` command itself,
-so there is nothing to run from `claudevm ssh` or VS Code's integrated
+New VMs have no `claude` command, so there is nothing to run from `claudevm ssh` or VS Code's integrated
 terminal without a manual install. This task makes `claude-sandbox.yaml`
 install it with Anthropic's native installer, on `PATH` in every shell
 context, and kept current by Claude Code's own auto-updater.
