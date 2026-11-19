@@ -40,6 +40,7 @@ is their own business, and the repo no longer mentions it.
 - cv-012's migration script re-renders old VMs from the current template; once this task lands, that re-render drops the secrets mount and provisioning. Its Must Have checks the per-instance mounts `cmd_up` renders, which covers either order. Values a migrated VM already has in `/etc/environment` and its git config stay behind, which matches the decision to leave existing VMs alone.
 - cv-011 is independent: the Claude CLI's first-run login is the user's own step.
 - 2026-11-19: Also dropped the secrets mentions in `tasks/active/cv-003-menubar-vm-control.md` (Non-goals) and `tasks/active/cv-005-docker-golang-provisioning.md` (Background), which the Must Have grep covers. Kept cv-012's Notes line about cv-013: it is the cross-task dependency record `CLAUDE.md` requires, about this task rather than the feature.
+- 2026-11-19: Fixed `run_claudevm(include_code=False)` in `tests/conftest.py`, a defect already on `main` that the Linux host check hit: it dropped every PATH dir holding a real `code`, and on a host where `code` sits in `/usr/bin` that took `bash` with it. It now links those dirs' other commands into its bin dir. Fixed here because the host checks this task needs cannot go green without it.
 
 ## Checklist
 - [x] Remove `cmd_secrets`, its dispatch, usage and header lines, and `cmd_up`'s secrets dir and mount from `claudevm`.
