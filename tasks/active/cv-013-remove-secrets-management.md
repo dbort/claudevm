@@ -39,7 +39,15 @@ is their own business, and the repo no longer mentions it.
 - Leave `tasks/completed/` and `tasks/abandoned/` as they are: they are the historical record. `.claude/docs/github-actions-hardening.md` mentions tokens and secrets in the GitHub Actions sense, which is unrelated.
 - cv-012's migration script re-renders old VMs from the current template; once this task lands, that re-render drops the secrets mount and provisioning. Its Must Have checks the per-instance mounts `cmd_up` renders, which covers either order. Values a migrated VM already has in `/etc/environment` and its git config stay behind, which matches the decision to leave existing VMs alone.
 - cv-011 is independent: the Claude CLI's first-run login is the user's own step.
+- 2026-11-19: Also dropped the secrets mentions in `tasks/active/cv-003-menubar-vm-control.md` (Non-goals) and `tasks/active/cv-005-docker-golang-provisioning.md` (Background), which the Must Have grep covers. Kept cv-012's Notes line about cv-013: it is the cross-task dependency record `CLAUDE.md` requires, about this task rather than the feature.
 
 ## Checklist
+- [x] Remove `cmd_secrets`, its dispatch, usage and header lines, and `cmd_up`'s secrets dir and mount from `claudevm`.
+- [x] Remove provisioning step 3 and secrets mentions from `claude-sandbox.yaml`.
+- [x] Drop the `claudevm secrets` line from `install.sh`.
+- [x] Remove secrets from `README.md` (intro, install, Quick start, Commands, How it works, Credentials section, Repo layout, migration step, Limitations) and `CLAUDE.md`'s opening.
+- [x] Delete `tests/test_secrets.py`; update `tests/test_up.py`, `tests/test_new.py`, `tests/conftest.py`; add `tests/test_cli.py` for the unknown-command fall-through.
+- [x] Drop secrets mentions from cv-003 and cv-005 task files.
+- [x] `tools/check` green.
 
 ## Review log

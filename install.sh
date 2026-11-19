@@ -137,6 +137,5 @@ chmod 600 "$SSH_CONFIG"
 echo
 echo "Done. Try it:"
 echo "  claudevm new myproject ~/path/to/project"
-echo "  claudevm secrets myproject   # Claude token, optional GitHub token"
 echo "  claudevm up myproject"
 echo "  claudevm code myproject"

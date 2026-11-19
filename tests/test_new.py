@@ -86,6 +86,3 @@ def test_new_and_up_mount_project_dir_and_config(run_real_claudevm, fresh_instan
 
     config_check = run_real_claudevm(["ssh", name, "--", "test", "-d", "/mnt/claudevm-config"], timeout=30)
     assert config_check.returncode == 0, config_check.stderr
-
-    secrets_check = run_real_claudevm(["ssh", name, "--", "test", "-d", "/mnt/claudevm-secrets"], timeout=30)
-    assert secrets_check.returncode == 0, secrets_check.stderr

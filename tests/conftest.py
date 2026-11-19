@@ -130,7 +130,7 @@ def run_claudevm(
 
     Runs the real claudevm script with limactl/code/uname faked and
     HOME/CLAUDEVM_HOME/CLAUDEVM_INSTANCES isolated to this test's own temp
-    dirs -- never touches the user's real config, secrets, or dotfiles.
+    dirs -- never touches the user's real config or dotfiles.
 
     include_code=False puts a PATH with the fake limactl but no `code` on
     it, for testing cmd_code's "not installed" error path.
@@ -309,7 +309,7 @@ def real_code_calls(real_claudevm_home):
 def shared_instance(run_real_claudevm, tmp_path_factory):
     """(name, project_dir), a single real VM created and booted once for
     the whole test session, reused by most integration tests (ssh,
-    secrets, ls, down/up resume) that don't need a fresh instance. Torn
+    ls, down/up resume) that don't need a fresh instance. Torn
     down once at the end of the session."""
     name = _test_instance_name()
     project_dir = tmp_path_factory.mktemp("shared-instance-project")

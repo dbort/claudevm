@@ -7,9 +7,6 @@
 #
 # Per project:
 #   claudevm new myproject ~/code/myproject     # create config (doesn't boot yet)
-#   claudevm secrets myproject                  # if the VM needs a Claude Code token or GitHub
-#                                                # access (push/pull, PRs, Issues/Projects API),
-#                                                # saves a scoped Claude token + GitHub PAT
 #   claudevm up myproject                       # boot the VM
 #   claudevm code myproject                     # open VS Code Remote-SSH into it
 #   ...work...
@@ -37,7 +34,6 @@ usage() {
 Usage: claudevm <command> [args]
 
   new <name> <project-dir>   Create config for a new sandbox
-  secrets <name>               Save a Claude Code token + (optional) GitHub token
   up <name>                   Boot (or resume) the sandbox VM
   down <name>                 Stop the VM (disk state is kept)
   rm <name>                   Stop, delete the VM, and delete its config
@@ -126,16 +122,9 @@ cmd_up() {
     local project_dir
     project_dir="$(cat "$cfg_dir/project-dir")"
 
-    # Always create and mount a secrets dir, even if empty: mounts are
-    # directory-level, so once it's mounted, files can be added or rotated
-    # inside it later (via `claudevm secrets`) without ever needing a new
-    # mount -- just a restart for provisioning to pick them up.
-    mkdir -p "$cfg_dir/secrets"
-    chmod 700 "$cfg_dir/secrets"
-
     # Render a per-instance config: the shared template plus an explicit
     # `mounts:` list, so the VM only ever sees the project dir and its own
-    # config/secrets -- never Lima's built-in default mounts (which include
+    # config -- never Lima's built-in default mounts (which include
     # the host's home directory). Built via plain file concatenation, not a
     # CLI `--mount` flag, since that flag's accepted syntax isn't consistent
     # across Lima versions and silently falling back to Lima's defaults is
@@ -150,9 +139,6 @@ cmd_up() {
       echo "    writable: true"
       echo "  - location: \"$cfg_dir\""
       echo "    mountPoint: \"/mnt/claudevm-config\""
-      echo "    writable: false"
-      echo "  - location: \"$cfg_dir/secrets\""
-      echo "    mountPoint: \"/mnt/claudevm-secrets\""
       echo "    writable: false"
     } >> "$rendered"
 
@@ -257,70 +243,12 @@ cmd_ls() {
     done
 }
 
-cmd_secrets() {
-  local name="${1:?instance name required}"
-  require_instance "$name"
-
-  local secrets_dir="$INSTANCES_DIR/$name/secrets"
-  mkdir -p "$secrets_dir"
-  chmod 700 "$secrets_dir"
-
-  if [ ! -f "$secrets_dir/claude_oauth_token.txt" ]; then
-    echo "No Claude Code token yet. On this HOST (not inside the VM), run:"
-    echo "    claude setup-token"
-    echo "Then paste the resulting token below (input hidden):"
-    read -r -s token
-    printf '%s' "$token" > "$secrets_dir/claude_oauth_token.txt"
-    chmod 600 "$secrets_dir/claude_oauth_token.txt"
-    echo
-    echo "Saved."
-  else
-    echo "Claude Code token already saved for '$name'."
-  fi
-  echo
-
-  if [ -f "$secrets_dir/gh_api_token.txt" ]; then
-    read -r -p "GitHub API token already saved for '$name'. Replace it? [y/N] " gh_ans
-  else
-    read -r -p "Add a GitHub token for push/pull, PRs, and Issues/Projects access? [y/N] " gh_ans
-  fi
-  case "$gh_ans" in
-    y|Y)
-      echo "Create a fine-grained personal access token at:"
-      echo "  https://github.com/settings/personal-access-tokens/new"
-      echo "Scope it to this repo only, with:"
-      echo "  Repository permissions -> Contents: Read and write      (git push/pull over HTTPS)"
-      echo "  Repository permissions -> Pull requests: Read and write (open/manage PRs)"
-      echo "  Repository permissions -> Issues: Read and write"
-      echo "  Organization permissions -> Projects: Read and write"
-      echo "(Projects access applies to every project your account/org owns --"
-      echo "GitHub has no way to scope it to a single project board.)"
-      echo
-      echo "Also protect the target branch (e.g. main) with a branch protection rule"
-      echo "requiring PRs, so this token can push feature branches but not merge directly."
-      echo
-      echo "Then paste the resulting token below (input hidden):"
-      read -r -s gh_token
-      printf '%s' "$gh_token" > "$secrets_dir/gh_api_token.txt"
-      chmod 600 "$secrets_dir/gh_api_token.txt"
-      echo
-      echo "Saved. Restart the VM to pick it up: claudevm down $name && claudevm up $name"
-      ;;
-    *)
-      echo "Skipped."
-      ;;
-  esac
-  echo
-  echo "Next: claudevm up $name"
-}
-
 main() {
   local cmd="${1:-}"
   [ -n "$cmd" ] || { usage; exit 1; }
   shift || true
   case "$cmd" in
     new) cmd_new "$@" ;;
-    secrets) cmd_secrets "$@" ;;
     up) cmd_up "$@" ;;
     down) cmd_down "$@" ;;
     rm) cmd_rm "$@" ;;

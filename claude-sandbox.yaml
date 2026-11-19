@@ -3,7 +3,7 @@
 # Lima template for a per-project Claude Code sandbox VM.
 # Resource sizing is passed via `limactl start` flags, and the `claudevm`
 # wrapper renders a per-instance copy of this file with an explicit `mounts:`
-# list appended (project dir + config/secrets) before starting the VM, so
+# list appended (project dir + config) before starting the VM, so
 # this file stays generic across projects and the VM never falls back to
 # Lima's default mounts (which include the host's home directory).
 #
@@ -23,9 +23,6 @@
 #      default, no PPA/version pinning)
 #   2. ~/.gitconfig and ~/.vimrc seeded from the host's copies, if `claudevm
 #      new` found any (one-time only, so later in-VM edits stick).
-#   3. Per-VM secrets (Claude token, GitHub token) wired up from
-#      /mnt/claudevm-secrets if the host provided them, never your real
-#      host credentials.
 
 minimumLimaVersion: 2.0.0
 
@@ -124,53 +121,11 @@ provision:
       if [ -f "$CONFIG/gitconfig" ] && [ ! -f ~/.gitconfig ]; then
         cp "$CONFIG/gitconfig" ~/.gitconfig
         # A host-wide credential.helper (e.g. macOS's osxkeychain) won't
-        # exist on Linux; URL-scoped helpers (secrets' own github.com one,
-        # or others the host config may set) are untouched.
+        # exist on Linux; URL-scoped helpers the host config may set are
+        # untouched.
         git config --global --unset credential.helper 2>/dev/null || true
       fi
 
       if [ -f "$CONFIG/vimrc" ] && [ ! -f ~/.vimrc ]; then
         cp "$CONFIG/vimrc" ~/.vimrc
-      fi
-
-  # 3. Wire up per-VM secrets (Claude token, GitHub API token), scoped to
-  #    this VM only, never your real host credentials. Runs on every boot.
-  - mode: user
-    script: |
-      #!/bin/bash
-      set -eu
-      SECRETS=/mnt/claudevm-secrets
-
-      # Copy secrets from the mounted files into the environment and other
-      # config files. Use /etc/environment instead of ~/.bashrc because VS
-      # Code's Remote-SSH extension host is a non-interactive background process
-      # and won't source bashrc.
-
-      # If a given token is no longer present, delete it from any persistent
-      # files.
-
-      # Claude auth
-      sudo sed -i '/^CLAUDE_CODE_OAUTH_TOKEN=/d' /etc/environment
-      if [ -f "$SECRETS/claude_oauth_token.txt" ]; then
-        TOKEN="$(cat "$SECRETS/claude_oauth_token.txt")"
-        echo "CLAUDE_CODE_OAUTH_TOKEN=\"$TOKEN\"" | sudo tee -a /etc/environment > /dev/null
-      fi
-
-      # Github auth
-      sudo sed -i '/^GH_TOKEN=/d' /etc/environment
-      git config --global --unset-all url."https://github.com/".insteadOf 2>/dev/null || true
-      git config --global --unset credential.https://github.com.helper 2>/dev/null || true
-      if [ -f "$SECRETS/gh_api_token.txt" ]; then
-        # GH_TOKEN: what `gh` and most GitHub API scripts expect.
-        GH_TOKEN="$(cat "$SECRETS/gh_api_token.txt")"
-        echo "GH_TOKEN=\"$GH_TOKEN\"" | sudo tee -a /etc/environment > /dev/null
-
-        # Make SSH-style remotes resolve over HTTPS instead, so existing
-        # git@github.com:... remotes work unmodified.
-        git config --global --add url."https://github.com/".insteadOf "git@github.com:"
-        git config --global --add url."https://github.com/".insteadOf "ssh://git@github.com/"
-        # Single-quoted $GH_TOKEN resolves per-invocation, so a rotated token
-        # takes effect without re-provisioning.
-        git config --global credential.https://github.com.helper \
-          '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'
       fi

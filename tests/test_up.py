@@ -33,14 +33,16 @@ def test_up_creates_new_instance(run_claudevm, claudevm_instances_dir, limactl_c
     assert any(a == "--tty=false" for a in start_args)
     assert limactl_state()["instances"]["myproject"] == "Running"
 
-    # The secrets dir must exist and be mounted -- even empty -- so a
-    # secret added later never needs a new mount, only a restart.
-    secrets_dir = claudevm_instances_dir / "myproject" / "secrets"
-    assert secrets_dir.is_dir()
     rendered = (claudevm_instances_dir / "myproject" / ".lima.yaml").read_text()
-    assert "/mnt/claudevm-secrets" in rendered
     assert "/mnt/claudevm-config" in rendered
     assert "/workspace" in rendered
+    # The VM sees only the project dir and its config: no other mount, and
+    # nothing else created in the instance dir for one.
+    assert rendered.count("mountPoint:") == 2
+    assert sorted(p.name for p in (claudevm_instances_dir / "myproject").iterdir()) == [
+        ".lima.yaml",
+        "project-dir",
+    ]
 
 
 def test_up_resumes_existing_instance_without_recreating(run_claudevm, limactl_calls, limactl_state, tmp_path):
