@@ -130,7 +130,7 @@ def run_claudevm(
 
     Runs the real claudevm script with limactl/code/uname faked and
     HOME/CLAUDEVM_HOME/CLAUDEVM_INSTANCES isolated to this test's own temp
-    dirs -- never touches the user's real config, secrets, or dotfiles.
+    dirs, so it never touches the user's real config or dotfiles.
 
     include_code=False puts a PATH with the fake limactl but no `code` on
     it, for testing cmd_code's "not installed" error path.
@@ -149,15 +149,23 @@ def run_claudevm(
             # actually running these tests may have a real VS Code CLI
             # installed somewhere on PATH already, which would make cmd_code
             # find that instead of genuinely seeing `code` as missing.
-            # Exclude every PATH entry that contains a real `code` binary.
+            # Drop every PATH entry that holds a real `code`, but link that
+            # entry's other commands into bin_dir: `code` often sits in
+            # /usr/bin beside the bash that claudevm's shebang needs.
+            real_dirs = env.get("PATH", "").split(os.pathsep)
+            code_dirs = [d for d in real_dirs if os.path.isfile(os.path.join(d, "code"))]
             bin_dir = tmp_path / "fakes-no-code"
             if not bin_dir.exists():
                 bin_dir.mkdir()
                 (bin_dir / "limactl").symlink_to(FAKES_DIR / "limactl")
                 (bin_dir / "uname").symlink_to(FAKES_DIR / "uname")
-            real_dirs = env.get("PATH", "").split(os.pathsep)
-            filtered_dirs = [d for d in real_dirs if not os.path.isfile(os.path.join(d, "code"))]
-            env["PATH"] = os.pathsep.join([str(bin_dir), *filtered_dirs])
+                for d in code_dirs:
+                    for entry in os.listdir(d):
+                        link = bin_dir / entry
+                        if entry != "code" and not os.path.lexists(link):
+                            link.symlink_to(os.path.join(d, entry))
+            other_dirs = [d for d in real_dirs if d not in code_dirs]
+            env["PATH"] = os.pathsep.join([str(bin_dir), *other_dirs])
         env["HOME"] = str(fake_home)
         env["CLAUDEVM_HOME"] = str(claudevm_home)
         env["CLAUDEVM_INSTANCES"] = str(claudevm_instances_dir)
@@ -309,7 +317,7 @@ def real_code_calls(real_claudevm_home):
 def shared_instance(run_real_claudevm, tmp_path_factory):
     """(name, project_dir), a single real VM created and booted once for
     the whole test session, reused by most integration tests (ssh,
-    secrets, ls, down/up resume) that don't need a fresh instance. Torn
+    ls, down/up resume) that don't need a fresh instance. Torn
     down once at the end of the session."""
     name = _test_instance_name()
     project_dir = tmp_path_factory.mktemp("shared-instance-project")

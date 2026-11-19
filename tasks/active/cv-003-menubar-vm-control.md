@@ -192,7 +192,7 @@ Status note above.)
 ## Non-goals
 
 - Not a GUI replacement for the rest of the `claudevm` CLI -- no `new`,
-  `secrets`, `allow`, `ssh`, or `code` equivalents. Start/stop and status
+  `allow`, `ssh`, or `code` equivalents. Start/stop and status
   only, per the explicit ask.
 - Not managing or creating claudevm instance config -- this only toggles
   instances that already exist.

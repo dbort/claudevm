@@ -1,8 +1,8 @@
 # Agent Instructions
 
 claudevm creates per-project, isolated Lima VMs on Apple Silicon Macs and
-Linux hosts with KVM for running Claude Code sessions, with per-VM
-credentials and none of the host's. It is for one developer
+Linux hosts with KVM for running Claude Code sessions, with none of the
+host's credentials. It is for one developer
 sandboxing their own projects. `README.md` covers what it does and how to
 use it.
 

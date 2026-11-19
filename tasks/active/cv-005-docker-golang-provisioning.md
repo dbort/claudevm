@@ -37,7 +37,7 @@ would leave `docker pull` blocked by the firewall.
 
 `claude-sandbox.yaml` provisions every new VM with a fixed, unconditional
 set of base packages (`python3` + pip/venv once cv-009 lands) plus the
-dotfile and secrets provisioning described in the file's own header
+dotfile provisioning described in the file's own header
 comment. There's no Docker or Go toolchain in any VM today, and
 no per-project mechanism to opt in to extra packages -- everything in the
 template applies to every VM.
