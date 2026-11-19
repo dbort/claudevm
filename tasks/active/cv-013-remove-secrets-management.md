@@ -66,3 +66,5 @@ Linux host check at 4889a0cf8035b9164e37d494dd8f88ad0c413c43: red. `test_code_er
 - **N2: Linked commands now come before earlier PATH entries** (`tests/conftest.py:156-168`): with `include_code=False`, commands linked into `bin_dir` can shadow ones from earlier PATH entries such as Homebrew; only the missing-CLI tests use it and they need only `bash` and basic shell tools, so acceptable as written.
 
 `tools/check --no-vm` green (`limactl` not on `PATH`).
+
+Host checks at c21830122009a265dfe78d269eec94b703b762ea: macOS green, Linux green
