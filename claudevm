@@ -25,8 +25,14 @@ DOTFILES_SOURCE="${CLAUDEVM_DOTFILES_SOURCE:-$HOME}"
 # same variable.
 KVM_DEVICE="${CLAUDEVM_KVM_DEVICE:-/dev/kvm}"
 
-CPUS="${CLAUDEVM_CPUS:-4}"
-MEMORY="${CLAUDEVM_MEMORY:-4}"   # GiB
+# Overridable so tests can fake the Linux host's RAM.
+MEMINFO="${CLAUDEVM_MEMINFO:-/proc/meminfo}"
+
+# Defaults for a new instance's size; see default_cpus and default_memory_gib.
+CPU_FLOOR=4
+CPU_CAP=8
+MEMORY_FLOOR_GIB=4
+MEMORY_CAP_GIB=8
 DISK="${CLAUDEVM_DISK:-60}"      # GiB
 
 usage() {
@@ -41,6 +47,39 @@ Usage: claudevm <command> [args]
   code <name>                 Open VS Code (Remote-SSH) into /workspace on the VM
   ls [--json]                  List claudevm-managed instances and their status
 EOF
+}
+
+clamp() {
+  local value="$1" floor="$2" cap="$3"
+  if [ "$value" -lt "$floor" ]; then
+    value="$floor"
+  elif [ "$value" -gt "$cap" ]; then
+    value="$cap"
+  fi
+  echo "$value"
+}
+
+# Half the host's hardware threads, clamped to [CPU_FLOOR, CPU_CAP].
+default_cpus() {
+  local threads
+  if [ "$(uname -s)" = "Darwin" ]; then
+    threads="$(sysctl -n hw.logicalcpu)"
+  else
+    threads="$(nproc)"
+  fi
+  clamp $((threads / 2)) "$CPU_FLOOR" "$CPU_CAP"
+}
+
+# A quarter of the host's RAM in whole GiB, clamped to
+# [MEMORY_FLOOR_GIB, MEMORY_CAP_GIB].
+default_memory_gib() {
+  local bytes
+  if [ "$(uname -s)" = "Darwin" ]; then
+    bytes="$(sysctl -n hw.memsize)"
+  else
+    bytes=$(($(awk '/^MemTotal:/ { print $2 }' "$MEMINFO") * 1024))
+  fi
+  clamp $((bytes / 4 / 1024 / 1024 / 1024)) "$MEMORY_FLOOR_GIB" "$MEMORY_CAP_GIB"
 }
 
 require_instance() {
@@ -142,8 +181,12 @@ cmd_up() {
       echo "    writable: false"
     } >> "$rendered"
 
+    local cpus="${CLAUDEVM_CPUS:-}" memory="${CLAUDEVM_MEMORY:-}"
+    [ -n "$cpus" ] || cpus="$(default_cpus)"
+    [ -n "$memory" ] || memory="$(default_memory_gib)"
+
     limactl start --name="$name" --tty=false \
-      --cpus="$CPUS" --memory="$MEMORY" --disk="$DISK" \
+      --cpus="$cpus" --memory="$memory" --disk="$DISK" \
       "$rendered"
   fi
 

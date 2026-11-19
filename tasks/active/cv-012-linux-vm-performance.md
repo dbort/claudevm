@@ -48,5 +48,14 @@ every VM, and gives the few existing VMs a one-off migration path.
 - cv-011 also edits `claude-sandbox.yaml` provisioning; whichever lands second rebases its step around the other's. The migration script picks up cv-011's install if cv-011 has landed by then.
 
 ## Checklist
+- [x] Host-scaled CPU and memory defaults in `claudevm`, with `sysctl`/`nproc` fakes and a meminfo override; unit tests per platform for below-floor, mid-range and above-cap hosts, plus the env overrides.
+- [x] zram swap provisioning in `claude-sandbox.yaml` (`systemd-zram-generator`); integration test on `swapon --show`.
+- [ ] Hand the user the throwaway benchmark script; record its numbers and the rule's pick in `## Decisions`.
+- [ ] Linux-only mount config the rule selects, rendered by `cmd_up`; Darwin `mounts:` unchanged (unit test); integration test reads the guest mount type on Linux.
+- [ ] If virtiofs: `install.sh` lists `virtiofsd` with its dnf package (unit test); README Linux requirements.
+- [x] README: sizing defaults scale with the host, pointing at the formula in `claudevm`.
+- [ ] Write the uncommitted migration script outside the repo; user runs it on a stopped VM on each host.
+- [ ] Manual QA on Fedora: ownership and no AVC denials.
+- [ ] `tools/check` green.
 
 ## Review log
