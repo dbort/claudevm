@@ -70,3 +70,13 @@ every VM, and gives the few existing VMs a one-off migration path.
 - [x] `tools/check` green.
 
 ## Review log
+
+### Round 1: APPROVED
+- **N1: `--no-vm` run** (`tools/check`): `limactl` is not on `PATH`; `test_real_instance_has_zram_swap` and `test_real_instance_workspace_mount_type` (`tests/test_up.py`) still need § Host checks on both platforms.
+- **N2: Migration script looks able to meet its Must Have** (`cv-012-migrate.sh`): preflights, keeps the guest disk, renders `cmd_up`'s mounts plus Linux `mountType: virtiofs`, new sizing and the current disk, validates before swapping, keeps a backup; whether Lima accepts switching an existing QEMU instance from 9p to virtiofs needs the manual QA run.
+- **N3: Script location departs from the Decision's wording** (Decisions): the script sits untracked at the checkout root behind `.git/info/exclude` rather than outside the repo; the Decision's purpose holds. Delete `cv-012-bench.sh` too.
+- **N4: Linux memory default rounds below nominal RAM** (`claudevm`, `default_memory_gib`): `MemTotal` sits below installed RAM, so a 32 GB Linux host gets 7 GiB where a Mac gets 8; fits the rule and errs small.
+- **N5: cv-005 still says the fixed sizing defaults stay** (`tasks/active/cv-005-docker-golang-provisioning.md`): add a dated pointer to cv-012's sizing.
+- **N6: History wording in a test comment** (`tests/test_up.py`, `test_up_renders_template_plus_mounts`): state the current rule instead of "before Linux moved to virtiofs".
+
+`tools/check --no-vm` green (`limactl` not on `PATH`).
