@@ -172,6 +172,12 @@ cmd_up() {
     cp "$TEMPLATE" "$rendered"
     {
       echo
+      # QEMU on Linux defaults to 9p, which cv-012's benchmark found 4-5x
+      # slower than virtiofs for small-file work. vz on macOS already
+      # defaults to virtiofs.
+      if [ "$(uname -s)" = "Linux" ]; then
+        echo "mountType: virtiofs"
+      fi
       echo "mounts:"
       echo "  - location: \"$project_dir\""
       echo "    mountPoint: \"/workspace\""

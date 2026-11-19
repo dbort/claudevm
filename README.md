@@ -13,7 +13,7 @@ Containers on macOS all run inside one shared Linux VM under the hood anyway (th
 One of:
 
 - **macOS:** an Apple Silicon Mac on macOS 13+, with [Homebrew](https://brew.sh).
-- **Linux:** an x86_64 or aarch64 host with [Lima](https://lima-vm.io/docs/installation/), QEMU for the host's architecture (`qemu-system-x86_64` or `qemu-system-aarch64`), `jq`, and read/write access to `/dev/kvm`. Tested on Fedora.
+- **Linux:** an x86_64 or aarch64 host with [Lima](https://lima-vm.io/docs/installation/), QEMU for the host's architecture (`qemu-system-x86_64` or `qemu-system-aarch64`), `virtiofsd` (Lima serves `/workspace` over virtiofs on Linux), `jq`, and read/write access to `/dev/kvm`. Tested on Fedora.
 
 Optionally, VS Code with the Remote - SSH extension: `claudevm code` opens a Remote-SSH connection into the VM when the `code` CLI is on your `PATH`.
 

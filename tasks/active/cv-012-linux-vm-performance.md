@@ -35,6 +35,15 @@ every VM, and gives the few existing VMs a one-off migration path.
 - zram swap in every VM, macOS included. It costs almost nothing while idle and turns an OOM kill into a slowdown under pressure. No disk swapfile: it grows the guest disk image for good and double-caches through the host.
 - Existing VMs migrate with a one-off script that is never committed: /work writes it outside the repo and hands the user its path, and the user deletes it after use. This keeps the `claudevm` command's scope unchanged. The script re-renders the instance's Lima config from the current template, keeping the guest disk, so old VMs also pick up every other template change. That is safe because provisioning already reruns on every boot.
 - The migration applies the new defaults with no never-shrink logic: every existing VM is smaller than the new caps.
+- 2026-11-19, Fedora benchmark (host kernel 7.3.4-300.fc45, Lima 2.3.0, QEMU 11.1.3, virtiofsd 1.14.0; 4 CPUs / 4 GiB guest). Seconds for 5,000 one-line writes / `find` over 76,837 entries with guest caches dropped / the same `find` warm:
+  - guest disk (baseline): 0.18 / 0.22 / 0.07
+  - default 9p (`msize=131072`, `cache=mmap`): 5.85 / 4.85 / 5.17
+  - tuned 9p, `msize` 4MiB (kernel clamps to 512000), `cache: mmap`: 6.71 / 5.22 / 5.22
+  - tuned 9p, `msize` 4MiB (512000), `cache: none`: 6.65 / 5.15 / 4.96
+  - virtiofs: 1.41 / 1.11 / 0.77
+
+  Every variant left guest-created files owned by the host user, showed a host edit in the guest within 0.04 s, and logged no AVC denials. Rule outcome: virtiofs is 4.7x (writes) and 4.6x (cold `find`) faster than the faster tuned 9p, under the 5x bar, and neither tuned 9p beats default 9p, so the Linux mount stays at Lima's default 9p with no options. The virtiofs-conditional Must Haves (`install.sh`, README requirements) do not apply.
+- 2026-11-19, user: ship virtiofs on Linux hosts despite missing the 5x bar. 4.1x to 4.7x is close enough, and its 0.04 s host-edit latency matches 9p, so it gives up no coherence. This overrides the rule's outcome above; the virtiofs-conditional Must Haves apply.
 
 ## Notes
 - Sizing defaults are `CPUS`/`MEMORY` near the top of `claudevm`, passed only on first `up` (`cmd_up`). Host detection needs new fakes alongside `tests/fakes/uname` (for example `sysctl` on Darwin, and `nproc` plus `/proc/meminfo` or an override on Linux).
@@ -46,16 +55,18 @@ every VM, and gives the few existing VMs a one-off migration path.
 - cv-010 decided to leave `mountType` unset and plan nothing about virtiofs; this task's benchmark decision supersedes that for Linux hosts.
 - cv-013 removes the secrets mount and provisioning. If it lands first, the migration's re-render drops them from old VMs; values already in a VM's `/etc/environment` and git config stay behind.
 - cv-011 also edits `claude-sandbox.yaml` provisioning; whichever lands second rebases its step around the other's. The migration script picks up cv-011's install if cv-011 has landed by then.
+- 2026-11-19: Manual QA's ownership and no-AVC checks came from the benchmark run, which booted a virtiofs VM on Fedora, wrote files in `/workspace` from the guest and ran `ausearch -m avc` over the whole run: host-user ownership, `<no matches>`.
+- 2026-11-19: The migration script is `cv-012-migrate.sh` at the checkout root, kept untracked through `.git/info/exclude`, since the host must reach it and this session's guest has no other host-visible path.
 
 ## Checklist
 - [x] Host-scaled CPU and memory defaults in `claudevm`, with `sysctl`/`nproc` fakes and a meminfo override; unit tests per platform for below-floor, mid-range and above-cap hosts, plus the env overrides.
 - [x] zram swap provisioning in `claude-sandbox.yaml` (`systemd-zram-generator`); integration test on `swapon --show`.
-- [ ] Hand the user the throwaway benchmark script; record its numbers and the rule's pick in `## Decisions`.
-- [ ] Linux-only mount config the rule selects, rendered by `cmd_up`; Darwin `mounts:` unchanged (unit test); integration test reads the guest mount type on Linux.
-- [ ] If virtiofs: `install.sh` lists `virtiofsd` with its dnf package (unit test); README Linux requirements.
+- [x] Hand the user the throwaway benchmark script; record its numbers and the rule's pick in `## Decisions`.
+- [x] Linux-only mount config the rule selects, rendered by `cmd_up`; Darwin `mounts:` unchanged (unit test); integration test reads the guest mount type on Linux.
+- [x] If virtiofs: `install.sh` lists `virtiofsd` with its dnf package (unit test); README Linux requirements.
 - [x] README: sizing defaults scale with the host, pointing at the formula in `claudevm`.
-- [ ] Write the uncommitted migration script outside the repo; user runs it on a stopped VM on each host.
-- [ ] Manual QA on Fedora: ownership and no AVC denials.
-- [ ] `tools/check` green.
+- [x] Write the uncommitted migration script outside the repo; user runs it on a stopped VM on each host.
+- [x] Manual QA on Fedora: ownership and no AVC denials.
+- [x] `tools/check` green.
 
 ## Review log

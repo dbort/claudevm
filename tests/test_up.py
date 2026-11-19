@@ -33,12 +33,8 @@ def test_up_creates_new_instance(run_claudevm, claudevm_instances_dir, limactl_c
     assert any(a == "--tty=false" for a in start_args)
     assert limactl_state()["instances"]["myproject"] == "Running"
 
-    rendered = (claudevm_instances_dir / "myproject" / ".lima.yaml").read_text()
-    assert "/mnt/claudevm-config" in rendered
-    assert "/workspace" in rendered
-    # The VM sees only the project dir and its config: no other mount, and
-    # nothing else created in the instance dir for one.
-    assert rendered.count("mountPoint:") == 2
+    # Nothing besides the rendered config lands in the instance dir; the
+    # rendered mounts are test_up_renders_template_plus_mounts's job.
     assert sorted(p.name for p in (claudevm_instances_dir / "myproject").iterdir()) == [
         ".lima.yaml",
         "project-dir",
@@ -191,3 +187,39 @@ def test_real_instance_has_zram_swap(run_real_claudevm, shared_instance):
 
     assert result.returncode == 0, result.stderr
     assert any(line.startswith("/dev/zram") for line in result.stdout.splitlines()), result.stdout
+
+
+@pytest.mark.parametrize("platform, mount_type", [("Darwin", ""), ("Linux", "mountType: virtiofs\n")])
+def test_up_renders_template_plus_mounts(
+    run_claudevm, claudevm_home, claudevm_instances_dir, tmp_path, platform, mount_type
+):
+    # Darwin's render is exactly what it was before Linux moved to virtiofs.
+    project_dir = tmp_path / "proj"
+    project_dir.mkdir()
+    run_claudevm(["new", "myproject", str(project_dir)])
+
+    result = run_claudevm(["up", "myproject"], platform=platform)
+
+    assert result.returncode == 0, result.stderr
+    cfg_dir = claudevm_instances_dir / "myproject"
+    template = (claudevm_home / "claude-sandbox.yaml").read_text()
+    assert (cfg_dir / ".lima.yaml").read_text() == template + "\n" + mount_type + (
+        "mounts:\n"
+        f'  - location: "{project_dir}"\n'
+        '    mountPoint: "/workspace"\n'
+        "    writable: true\n"
+        f'  - location: "{cfg_dir}"\n'
+        '    mountPoint: "/mnt/claudevm-config"\n'
+        "    writable: false\n"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(120)
+def test_real_instance_workspace_mount_type(run_real_claudevm, shared_instance):
+    name, project_dir = shared_instance
+    result = run_real_claudevm(["ssh", name, "--", "findmnt", "-n", "-o", "FSTYPE", "/workspace"], timeout=30)
+
+    # claudevm sets virtiofs on Linux; vz on macOS defaults to it.
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "virtiofs"
