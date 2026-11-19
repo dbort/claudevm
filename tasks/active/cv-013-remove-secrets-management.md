@@ -51,3 +51,9 @@ is their own business, and the repo no longer mentions it.
 - [x] `tools/check` green.
 
 ## Review log
+
+### Round 1: APPROVED
+- **N1: ` -- ` dashes left in rewritten comment lines** (`claudevm:127`, `tests/conftest.py:133`): both rewritten lines keep their old ` -- ` asides, which § Writing style forbids; swap each for a colon or a new sentence in the next round, or leave to `/ship`'s doc-hygiene sweep.
+- **N2: Mount-count assertion depends on the template's text** (`tests/test_up.py:41`): `rendered.count("mountPoint:") == 2` counts across the whole rendered file, template included; it would fail loudly, not silently, so it is acceptable as written.
+
+`tools/check --no-vm` green (`limactl` not on `PATH`).
