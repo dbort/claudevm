@@ -58,3 +58,11 @@ is their own business, and the repo no longer mentions it.
 - **N2: Mount-count assertion depends on the template's text** (`tests/test_up.py:41`): `rendered.count("mountPoint:") == 2` counts across the whole rendered file, template included; it would fail loudly, not silently, so it is acceptable as written.
 
 `tools/check --no-vm` green (`limactl` not on `PATH`).
+
+Linux host check at 4889a0cf8035b9164e37d494dd8f88ad0c413c43: red. `test_code_errors_clearly_when_cli_missing` failed on a fixture defect already on `main` (fixed in 5c53c89); `test_down_then_up_resumes_real_instance` failed when `limactl start` died with `failed to unmarshal ... as events.Event: unexpected end of JSON input`, suspected an upstream Lima race.
+
+### Round 2: APPROVED
+- **N1: ` -- ` dashes still in comment lines from round 1** (`claudevm:127`, `tests/conftest.py:133`): round 1's N1 is still open; fix on the branch or leave to `/ship`'s doc-hygiene sweep.
+- **N2: Linked commands now come before earlier PATH entries** (`tests/conftest.py:156-168`): with `include_code=False`, commands linked into `bin_dir` can shadow ones from earlier PATH entries such as Homebrew; only the missing-CLI tests use it and they need only `bash` and basic shell tools, so acceptable as written.
+
+`tools/check --no-vm` green (`limactl` not on `PATH`).
