@@ -56,6 +56,7 @@ A new VM's CPU and memory defaults scale with the host's CPU threads and RAM, ea
 - **`claude-sandbox.yaml`** is a Lima template (Ubuntu, self-contained — see the file header for why it doesn't use Lima's `base:` composition) that:
   - installs `python3` with `pip` and `venv`
   - turns on zram swap, so memory pressure slows a VM down instead of killing processes
+  - installs the Claude Code CLI (`claude`) with Anthropic's native installer, and lets its auto-updater keep it current
   - seeds `~/.gitconfig` and `~/.vimrc` from your host's copies, if `claudevm new` found any — one-time only, so later in-VM edits aren't overwritten on reboot
 - **`claudevm`** is the wrapper: at `up` time it renders a per-instance Lima config (template plus an explicit `mounts:` list for the project dir and per-instance config) so the shared template file stays generic across all projects.
 - **`pre-push-branch-guard.sh`** is an optional git hook you can drop into a project to block direct pushes to protected branches, as a local backstop alongside GitHub branch protection rules.
@@ -63,7 +64,7 @@ A new VM's CPU and memory defaults scale with the host's CPU threads and RAM, ea
 ## Repo layout
 
 ```
-claude-sandbox.yaml         Lima VM template (packages, dotfiles)
+claude-sandbox.yaml         Lima VM template (packages, dotfiles, Claude Code CLI)
 claudevm                    CLI wrapper
 install.sh                  One-shot setup script
 pre-push-branch-guard.sh    Optional git hook for protected branches
@@ -94,6 +95,13 @@ The unit tier fakes `limactl`/`code` and isolates `$HOME`/config dirs, so it nev
 ## Migrating VMs created by older versions
 
 Older versions of claudevm restricted VMs' outbound network access with an in-guest firewall and a domain allowlist. A VM created by one of those versions keeps those restrictions, because Lima stores each VM's provisioning when the VM is created and reapplies it on every boot. To drop them, recreate the VM: `claudevm rm <name>`, then `claudevm new` and `claudevm up`. `rm` deletes the VM's disk, so commit or copy out anything you need first; the project directory on the host is untouched.
+
+A VM created before claudevm installed the Claude Code CLI has no `claude` command. Install it once from inside the VM (`claudevm ssh <name>`), with no need to recreate the VM:
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
+sudo ln -sfn ~/.local/bin/claude /usr/local/bin/claude   # so VS Code's terminal finds it too
+```
 
 ## Limitations
 

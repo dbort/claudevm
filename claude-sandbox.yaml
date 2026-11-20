@@ -24,6 +24,8 @@
 #   2. ~/.gitconfig and ~/.vimrc seeded from the host's copies, if `claudevm
 #      new` found any (one-time only, so later in-VM edits stick).
 #   3. zram swap, sized by systemd-zram-generator's packaged default.
+#   4. the Claude Code CLI, from Anthropic's native installer, kept current by
+#      its own auto-updater.
 
 minimumLimaVersion: 2.0.0
 
@@ -142,3 +144,26 @@ provision:
       set -eux
       systemctl daemon-reload
       systemctl start systemd-zram-setup@zram0.service
+
+  # 4. Claude Code CLI. The installer puts it under the VM user's home, so
+  #    its auto-updater can replace it without root. Install only when it is
+  #    missing: provisioning reruns every boot, and the updater keeps it
+  #    current. A failed download leaves a usable VM, so it warns instead of
+  #    failing the boot, and the next boot retries. pipefail matters: without
+  #    it a failed curl pipes nothing into a bash that exits 0.
+  #    Only login shells get ~/.local/bin on PATH (Ubuntu's ~/.profile adds
+  #    it), and VS Code's integrated terminal is not one, so link it into
+  #    /usr/local/bin. The link lives here because Lima runs every system
+  #    step before any user step. Linking the updater's own symlink, rather
+  #    than the version file it points to, follows every update.
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -u -o pipefail
+      if [ ! -e ~/.local/bin/claude ]; then
+        curl -fsSL https://claude.ai/install.sh | bash ||
+          echo "WARNING: Claude Code CLI install failed (exit $?); the next boot retries." >&2
+      fi
+      if [ -e ~/.local/bin/claude ]; then
+        sudo ln -sfn ~/.local/bin/claude /usr/local/bin/claude
+      fi
