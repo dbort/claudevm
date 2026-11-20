@@ -12,12 +12,12 @@ install it with Anthropic's native installer, on `PATH` in every shell
 context, and kept current by Claude Code's own auto-updater.
 
 ## Must Have
-- [ ] A freshly created VM has a working `claude`: `claudevm ssh <name> -- claude --version` exits 0 (non-interactive, bare command name).
-- [ ] Bare `claude` also resolves in an interactive login shell in the VM (`bash -lic 'command -v claude'` via `claudevm ssh`).
-- [ ] A reboot (`claudevm down` then `up`) does not reinstall: the resolved `claude` binary's path and mtime are unchanged across the restart.
-- [ ] When the installer download fails, provisioning prints a warning naming the failure, the VM still finishes booting (`claudevm up` exits 0), and the next boot retries the install. `tests/test_claude_cli.py::test_real_instance_boots_after_failed_claude_download_then_retries` covers it.
-- [ ] `README.md` lists the Claude Code CLI among what the template installs, and gives the one-line installer command for VMs created before this change.
-- [ ] `claude-sandbox.yaml`'s header list of what the template adds includes the CLI.
+- [x] A freshly created VM has a working `claude`: `claudevm ssh <name> -- claude --version` exits 0 (non-interactive, bare command name).
+- [x] Bare `claude` also resolves in an interactive login shell in the VM (`bash -lic 'command -v claude'` via `claudevm ssh`).
+- [x] A reboot (`claudevm down` then `up`) does not reinstall: the resolved `claude` binary's path and mtime are unchanged across the restart.
+- [x] When the installer download fails, provisioning prints a warning naming the failure, the VM still finishes booting (`claudevm up` exits 0), and the next boot retries the install. `tests/test_claude_cli.py::test_real_instance_boots_after_failed_claude_download_then_retries` covers it.
+- [x] `README.md` lists the Claude Code CLI among what the template installs, and gives the one-line installer command for VMs created before this change.
+- [x] `claude-sandbox.yaml`'s header list of what the template adds includes the CLI.
 
 ## Decisions
 - Install only; no `claudevm claude` subcommand. The user runs `claude` from `claudevm ssh` or the VS Code terminal.
