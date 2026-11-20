@@ -64,3 +64,5 @@ context, and kept current by Claude Code's own auto-updater.
 - **N1:** `fresh_instance`'s docstring (`tests/conftest.py`) still limits it to creation-path tests; this test uses it to protect the shared VM.
 - **N2:** the warning check reads every boot's log; it relies on the fresh VM's first boot installing cleanly, as the test's comment says.
 - **N3:** round 2's N1 and N2 stand.
+
+Host checks at 329d99d1ef6f6ee15e8d5251432dd91fb76a78e0: macOS green, Linux green
