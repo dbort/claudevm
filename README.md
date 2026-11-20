@@ -49,7 +49,7 @@ claudevm code myproject                     # open VS Code (Remote-SSH) into it
 | `claudevm code <name>` | Open VS Code (Remote-SSH) at `/workspace` on the VM. |
 | `claudevm ls [--json]` | List claudevm-managed instances and their status (`Running`, `Stopped`, or `new` for one that's never been booted). `--json` for structured output. |
 
-A new VM's CPU and memory defaults scale with the host: half its CPU threads and a quarter of its RAM, each held between a floor and a cap (`default_cpus` and `default_memory_gib` in `claudevm`). The disk default is `DISK` in `claudevm`. Set `CLAUDEVM_CPUS`, `CLAUDEVM_MEMORY` (GiB) or `CLAUDEVM_DISK` (GiB) before the first `claudevm up` to override them; a VM keeps its size after creation.
+A new VM's CPU and memory defaults scale with the host's CPU threads and RAM, each held between a floor and a cap (`default_cpus` and `default_memory_gib` in `claudevm`). The disk default is `DISK` in `claudevm`. Set `CLAUDEVM_CPUS`, `CLAUDEVM_MEMORY` (GiB) or `CLAUDEVM_DISK` (GiB) before the first `claudevm up` to override them; a VM keeps its size after creation.
 
 ## How it works
 
