@@ -39,7 +39,7 @@ context, and kept current by Claude Code's own auto-updater.
 
 ## Checklist
 - [x] Confirm the installer's install location, auto-update behavior and non-interactive run.
-- [x] `claude-sandbox.yaml`: header item 4; step 4 installs as the VM user only if missing, warning on failure; step 5 links `/usr/local/bin/claude`.
+- [x] `claude-sandbox.yaml`: header item 4; step 4 installs as the VM user only if missing, warning on failure, and links `/usr/local/bin/claude` with `sudo` (round 1 F1: a separate system step runs before any user step).
 - [x] Check step 4's failure path locally (unreachable URL: curl error, then warning, exit 0) and shellcheck steps 4 and 5.
 - [x] Integration tests: `tests/test_claude_cli.py` (version, no-profile PATH, interactive login shell); reboot check in `test_down_then_up_resumes_real_instance`.
 - [x] README: CLI in "How it works" and repo layout; installer command for existing VMs.

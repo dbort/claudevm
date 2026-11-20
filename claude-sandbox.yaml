@@ -151,6 +151,11 @@ provision:
   #    current. A failed download leaves a usable VM, so it warns instead of
   #    failing the boot, and the next boot retries. pipefail matters: without
   #    it a failed curl pipes nothing into a bash that exits 0.
+  #    Only login shells get ~/.local/bin on PATH (Ubuntu's ~/.profile adds
+  #    it), and VS Code's integrated terminal is not one, so link it into
+  #    /usr/local/bin. The link lives here because Lima runs every system
+  #    step before any user step. Linking the updater's own symlink, rather
+  #    than the version file it points to, follows every update.
   - mode: user
     script: |
       #!/bin/bash
@@ -159,15 +164,6 @@ provision:
         curl -fsSL https://claude.ai/install.sh | bash ||
           echo "WARNING: Claude Code CLI install failed (exit $?); the next boot retries." >&2
       fi
-
-  # 5. Only login shells get ~/.local/bin on PATH (Ubuntu's ~/.profile adds
-  #    it), and VS Code's integrated terminal is not one. /usr/local/bin is
-  #    on PATH everywhere. Linking the updater's own symlink, rather than the
-  #    version file it points to, follows every update.
-  - mode: system
-    script: |
-      #!/bin/bash
-      set -eux
-      if [ -e "{{.Home}}/.local/bin/claude" ]; then
-        ln -sfn "{{.Home}}/.local/bin/claude" /usr/local/bin/claude
+      if [ -e ~/.local/bin/claude ]; then
+        sudo ln -sfn ~/.local/bin/claude /usr/local/bin/claude
       fi
