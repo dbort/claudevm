@@ -13,7 +13,7 @@ Containers on macOS all run inside one shared Linux VM under the hood anyway (th
 One of:
 
 - **macOS:** an Apple Silicon Mac on macOS 13+, with [Homebrew](https://brew.sh).
-- **Linux:** an x86_64 or aarch64 host with [Lima](https://lima-vm.io/docs/installation/), QEMU for the host's architecture (`qemu-system-x86_64` or `qemu-system-aarch64`), `jq`, and read/write access to `/dev/kvm`. Tested on Fedora.
+- **Linux:** an x86_64 or aarch64 host with [Lima](https://lima-vm.io/docs/installation/), QEMU for the host's architecture (`qemu-system-x86_64` or `qemu-system-aarch64`), `virtiofsd` (Lima serves `/workspace` over virtiofs on Linux), `jq`, and read/write access to `/dev/kvm`. Tested on Fedora.
 
 Optionally, VS Code with the Remote - SSH extension: `claudevm code` opens a Remote-SSH connection into the VM when the `code` CLI is on your `PATH`.
 
@@ -49,12 +49,13 @@ claudevm code myproject                     # open VS Code (Remote-SSH) into it
 | `claudevm code <name>` | Open VS Code (Remote-SSH) at `/workspace` on the VM. |
 | `claudevm ls [--json]` | List claudevm-managed instances and their status (`Running`, `Stopped`, or `new` for one that's never been booted). `--json` for structured output. |
 
-Resource sizing (defaults: 4 CPUs, 4 GiB memory, 60 GB disk) can be overridden with `CLAUDEVM_CPUS`, `CLAUDEVM_MEMORY`, `CLAUDEVM_DISK` environment variables before `claudevm up`.
+A new VM's CPU and memory defaults scale with the host's CPU threads and RAM, each held between a floor and a cap (`default_cpus` and `default_memory_gib` in `claudevm`). The disk default is `DISK` in `claudevm`. Set `CLAUDEVM_CPUS`, `CLAUDEVM_MEMORY` (GiB) or `CLAUDEVM_DISK` (GiB) before the first `claudevm up` to override them; a VM keeps its size after creation.
 
 ## How it works
 
 - **`claude-sandbox.yaml`** is a Lima template (Ubuntu, self-contained — see the file header for why it doesn't use Lima's `base:` composition) that:
   - installs `python3` with `pip` and `venv`
+  - turns on zram swap, so memory pressure slows a VM down instead of killing processes
   - seeds `~/.gitconfig` and `~/.vimrc` from your host's copies, if `claudevm new` found any — one-time only, so later in-VM edits aren't overwritten on reboot
 - **`claudevm`** is the wrapper: at `up` time it renders a per-instance Lima config (template plus an explicit `mounts:` list for the project dir and per-instance config) so the shared template file stays generic across all projects.
 - **`pre-push-branch-guard.sh`** is an optional git hook you can drop into a project to block direct pushes to protected branches, as a local backstop alongside GitHub branch protection rules.

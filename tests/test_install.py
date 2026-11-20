@@ -34,10 +34,12 @@ esac
 
 @pytest.fixture
 def install_env(tmp_path, fake_home):
-    """install_env(tools, platform=..., machine=..., kvm=...) -> (env, log).
+    """install_env(tools, platform=..., machine=..., kvm=..., vhost_user=...) -> (env, log).
 
     tools names the stubbed commands to put on PATH. Every stub appends
     "<name> <args>" to log when run. kvm is a make_kvm_device state.
+    vhost_user is the backend type of the one QEMU vhost-user descriptor
+    in CLAUDEVM_VHOST_USER_DIR, or None for an empty dir.
     """
     log = tmp_path / "install-tool-log.txt"
     log.write_text("")
@@ -45,7 +47,7 @@ def install_env(tmp_path, fake_home):
     # may be writable on the machine running the tests.
     (fake_home / ".local" / "bin").mkdir(parents=True)
 
-    def _make(tools, platform="Linux", machine="x86_64", kvm="rw"):
+    def _make(tools, platform="Linux", machine="x86_64", kvm="rw", vhost_user="fs"):
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
         for name in COREUTILS:
@@ -61,7 +63,13 @@ def install_env(tmp_path, fake_home):
             stub.write_text(STUB.format(log=log))
             stub.chmod(0o755)
 
+        vhost_dir = tmp_path / "vhost-user"
+        vhost_dir.mkdir()
+        if vhost_user is not None:
+            write_vhost_descriptor(vhost_dir, vhost_user)
+
         env = {
+            "CLAUDEVM_VHOST_USER_DIR": str(vhost_dir),
             "PATH": str(bin_dir),
             "HOME": str(fake_home),
             "FAKE_UNAME_S": platform,
@@ -71,6 +79,16 @@ def install_env(tmp_path, fake_home):
         return env, log
 
     return _make
+
+
+def write_vhost_descriptor(directory, backend_type):
+    """Writes a QEMU vhost-user descriptor shaped like Fedora's virtiofsd one."""
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "50-backend.json").write_text(
+        '{\n  "description": "vhost-user backend",\n'
+        f'  "type": "{backend_type}",\n'
+        '  "binary": "/usr/libexec/backend"\n}\n'
+    )
 
 
 def run_install(env):
@@ -113,17 +131,17 @@ def test_linux_with_every_dependency_installs(install_env, fake_home):
 
 
 def test_linux_reports_every_missing_item_with_dnf_hint(install_env, fake_home, tmp_path):
-    env, log = install_env(["dnf", "brew", "sudo"], kvm="missing")
+    env, log = install_env(["dnf", "brew", "sudo"], kvm="missing", vhost_user=None)
 
     result = run_install(env)
 
     assert result.returncode != 0
     missing_line = next(l for l in result.stderr.splitlines() if l.startswith("Missing:"))
-    assert missing_line.split()[1:] == [*LINUX_DEPS, str(tmp_path / "fake-kvm-missing")]
+    assert missing_line.split()[1:] == [*LINUX_DEPS, "virtiofsd", str(tmp_path / "fake-kvm-missing")]
     assert "https://lima-vm.io/docs/installation/" in result.stderr
     dnf_lines = [l for l in result.stderr.splitlines() if "sudo dnf install" in l]
     assert len(dnf_lines) == 1
-    assert dnf_lines[0].endswith("sudo dnf install qemu-kvm qemu-img jq")
+    assert dnf_lines[0].endswith("sudo dnf install qemu-kvm qemu-img jq virtiofsd")
     assert "usermod -aG kvm" in result.stderr
     assert_nothing_installed(fake_home)
     assert tool_calls(log) == []
@@ -153,6 +171,28 @@ def test_linux_missing_only_kvm_prints_no_dnf_hint(install_env, fake_home, tmp_p
     assert "dnf install" not in result.stderr
     assert_nothing_installed(fake_home)
     assert tool_calls(log) == []
+
+
+@pytest.mark.parametrize("vhost_user", [None, "gpu"])
+def test_linux_without_virtiofs_descriptor_reports_virtiofsd(install_env, fake_home, vhost_user):
+    env, log = install_env([*LINUX_DEPS, "dnf"], vhost_user=vhost_user)
+
+    result = run_install(env)
+
+    assert result.returncode != 0
+    assert "Missing: virtiofsd" in result.stderr
+    assert "sudo dnf install virtiofsd" in result.stderr
+    assert_nothing_installed(fake_home)
+
+
+def test_linux_accepts_virtiofs_descriptor_in_home(install_env, fake_home):
+    env, log = install_env(LINUX_DEPS, vhost_user=None)
+    write_vhost_descriptor(fake_home / ".local" / "share" / "qemu" / "vhost-user", "fs")
+
+    result = run_install(env)
+
+    assert result.returncode == 0, result.stderr
+    assert_installed(fake_home)
 
 
 def test_linux_checks_qemu_for_host_arch(install_env, fake_home):

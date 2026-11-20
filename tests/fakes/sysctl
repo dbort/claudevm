@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+"""Fake `sysctl`: answers only `-n hw.memsize` and `-n hw.logicalcpu`, from
+FAKE_SYSCTL_HW_MEMSIZE and FAKE_SYSCTL_HW_LOGICALCPU. A missing variable is
+a KeyError rather than a fallback to the real host's answer."""
+import os
+import sys
+
+KEYS = {"hw.memsize": "FAKE_SYSCTL_HW_MEMSIZE", "hw.logicalcpu": "FAKE_SYSCTL_HW_LOGICALCPU"}
+
+
+def main(argv):
+    if len(argv) != 2 or argv[0] != "-n" or argv[1] not in KEYS:
+        print(f"fake sysctl: unsupported args {argv!r}", file=sys.stderr)
+        return 1
+    print(os.environ[KEYS[argv[1]]])
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

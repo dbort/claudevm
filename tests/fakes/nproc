@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+"""Fake `nproc`: prints FAKE_NPROC and takes no arguments. A missing
+variable is a KeyError rather than a fallback to the real host's answer."""
+import os
+import sys
+
+if __name__ == "__main__":
+    if sys.argv[1:]:
+        print(f"fake nproc: unsupported args {sys.argv[1:]!r}", file=sys.stderr)
+        sys.exit(1)
+    print(os.environ["FAKE_NPROC"])

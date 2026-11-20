@@ -12,6 +12,8 @@ CLAUDEVM_HOME="${CLAUDEVM_HOME:-$HOME/.config/claudevm}"
 # Overridable so tests can stand in for the device; claudevm reads the same
 # variable.
 KVM_DEVICE="${CLAUDEVM_KVM_DEVICE:-/dev/kvm}"
+# Overridable so tests never see the real host's vhost-user descriptors.
+VHOST_USER_DIR="${CLAUDEVM_VHOST_USER_DIR:-/usr/share/qemu/vhost-user}"
 HOST_OS="$(uname -s)"
 
 brew_install_if_missing() {
@@ -53,6 +55,12 @@ else
   if ! command -v jq >/dev/null 2>&1; then
     missing="$missing jq"
     dnf_packages="$dnf_packages jq"
+  fi
+  # Lima finds virtiofsd through QEMU's vhost-user descriptors, not PATH,
+  # so look where Lima looks for one of type "fs".
+  if ! grep -qs '"fs"' "$HOME/.local/share/qemu/vhost-user/"*.json "$VHOST_USER_DIR/"*.json; then
+    missing="$missing virtiofsd"
+    dnf_packages="$dnf_packages virtiofsd"
   fi
   if [ ! -r "$KVM_DEVICE" ] || [ ! -w "$KVM_DEVICE" ]; then
     missing="$missing $KVM_DEVICE"

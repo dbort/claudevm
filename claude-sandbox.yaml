@@ -23,6 +23,7 @@
 #      default, no PPA/version pinning)
 #   2. ~/.gitconfig and ~/.vimrc seeded from the host's copies, if `claudevm
 #      new` found any (one-time only, so later in-VM edits stick).
+#   3. zram swap, sized by systemd-zram-generator's packaged default.
 
 minimumLimaVersion: 2.0.0
 
@@ -107,7 +108,7 @@ provision:
       set -eux
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -y
-      apt-get install -y python3 python3-pip python3-venv
+      apt-get install -y python3 python3-pip python3-venv systemd-zram-generator
 
   # 2. Seed dotfiles from the host, if `claudevm new` copied them in. Only
   #    ever placed once (skipped if the guest already has one), so later
@@ -129,3 +130,15 @@ provision:
       if [ -f "$CONFIG/vimrc" ] && [ ! -f ~/.vimrc ]; then
         cp "$CONFIG/vimrc" ~/.vimrc
       fi
+
+  # 3. zram swap turns memory pressure into a slowdown instead of an OOM
+  #    kill, and costs almost nothing while idle. A disk swapfile would grow
+  #    the guest image for good and double-cache through the host. The
+  #    generator brings the device up on later boots by itself; on the first
+  #    boot it ran before the package existed, so start the unit here.
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux
+      systemctl daemon-reload
+      systemctl start systemd-zram-setup@zram0.service

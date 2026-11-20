@@ -138,10 +138,18 @@ def run_claudevm(
     platform is what the fake `uname -s` reports. kvm picks the state of
     the fake device CLAUDEVM_KVM_DEVICE points at (make_kvm_device), so the
     result never depends on the real host's /dev/kvm.
+
+    host is (memory_gib, threads) for the faked host: the fake `sysctl`
+    reports it on Darwin, and the fake `nproc` plus a meminfo file at
+    CLAUDEVM_MEMINFO report it on Linux. Any CLAUDEVM_CPUS or
+    CLAUDEVM_MEMORY in the caller's environment is dropped; extra_env sets
+    variables on top.
     """
 
-    def _run(args, input=None, timeout=30, include_code=True, platform="Linux", kvm="rw"):
+    def _run(args, input=None, timeout=30, include_code=True, platform="Linux", kvm="rw", host=(16, 8), extra_env=None):
         env = dict(os.environ)
+        env.pop("CLAUDEVM_CPUS", None)
+        env.pop("CLAUDEVM_MEMORY", None)
         if include_code:
             env["PATH"] = f"{FAKES_DIR}:{env.get('PATH', '')}"
         else:
@@ -157,8 +165,9 @@ def run_claudevm(
             bin_dir = tmp_path / "fakes-no-code"
             if not bin_dir.exists():
                 bin_dir.mkdir()
-                (bin_dir / "limactl").symlink_to(FAKES_DIR / "limactl")
-                (bin_dir / "uname").symlink_to(FAKES_DIR / "uname")
+                for fake in FAKES_DIR.iterdir():
+                    if fake.name != "code":
+                        (bin_dir / fake.name).symlink_to(fake)
                 for d in code_dirs:
                     for entry in os.listdir(d):
                         link = bin_dir / entry
@@ -175,6 +184,14 @@ def run_claudevm(
         env["FAKE_UNAME_S"] = platform
         env["FAKE_UNAME_M"] = "x86_64"
         env["CLAUDEVM_KVM_DEVICE"] = str(make_kvm_device(tmp_path, kvm))
+        memory_gib, threads = host
+        meminfo = tmp_path / "fake-meminfo"
+        meminfo.write_text(f"MemTotal:       {memory_gib * 1024 * 1024} kB\nMemFree:        1024 kB\n")
+        env["CLAUDEVM_MEMINFO"] = str(meminfo)
+        env["FAKE_NPROC"] = str(threads)
+        env["FAKE_SYSCTL_HW_MEMSIZE"] = str(memory_gib * 1024**3)
+        env["FAKE_SYSCTL_HW_LOGICALCPU"] = str(threads)
+        env.update(extra_env or {})
         return subprocess.run(
             [str(CLAUDEVM_BIN), *args],
             env=env,
