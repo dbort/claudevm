@@ -46,3 +46,8 @@ context, and kept current by Claude Code's own auto-updater.
 - [x] `tools/check --no-vm` green (no `limactl` in this guest).
 
 ## Review log
+
+### Round 1: REJECTED (6fad2f3)
+`tools/check --no-vm` green; `limactl` is not on `PATH` in this guest.
+- **F1:** Lima's `boot.sh` runs every `provision.system` script before any `provision.user` script, whatever the YAML order (v2.3.0 `pkg/cidata/cidata.TEMPLATE.d/boot.sh`). On first boot, step 5's guard therefore fails before step 4 installs, and `/usr/local/bin/claude` appears only on the second boot. Link from step 4 with `sudo`, or drop the guard; fix the comment.
+- **N1:** the reboot mtime check could flake if an auto-update lands between the two stats. Low risk; note it if it ever shows up.
