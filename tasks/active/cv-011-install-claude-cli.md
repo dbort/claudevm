@@ -58,3 +58,9 @@ context, and kept current by Claude Code's own auto-updater.
 `tools/check --no-vm` green; `limactl` is not on `PATH` in this guest. F1 fixed: step 4 links `/usr/local/bin/claude` with `sudo` in the same step that installs.
 - **N1:** an unexpected `sudo` failure would exit the user step non-zero instead of warning. Lima's default passwordless sudo rules it out.
 - **N2:** round 1 N1 stands (reboot mtime check could flake on a mid-test auto-update).
+
+### Round 3: APPROVED (a38e02e)
+`tools/check --no-vm` green; `limactl` is not on `PATH` in this guest. The failed-download test's premises check out against Lima v2.3.0 and the live installer.
+- **N1:** `fresh_instance`'s docstring (`tests/conftest.py`) still limits it to creation-path tests; this test uses it to protect the shared VM.
+- **N2:** the warning check reads every boot's log; it relies on the fresh VM's first boot installing cleanly, as the test's comment says.
+- **N3:** round 2's N1 and N2 stand.
