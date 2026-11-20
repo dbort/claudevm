@@ -44,6 +44,7 @@ every VM, and gives the few existing VMs a one-off migration path.
 
   Every variant left guest-created files owned by the host user, showed a host edit in the guest within 0.04 s, and logged no AVC denials. Rule outcome: virtiofs is 4.7x (writes) and 4.6x (cold `find`) faster than the faster tuned 9p, under the 5x bar, and neither tuned 9p beats default 9p, so the Linux mount stays at Lima's default 9p with no options. The virtiofs-conditional Must Haves (`install.sh`, README requirements) do not apply.
 - 2026-11-19, user: ship virtiofs on Linux hosts despite missing the 5x bar. 4.1x to 4.7x is close enough, and its 0.04 s host-edit latency matches 9p, so it gives up no coherence. This overrides the rule's outcome above; the virtiofs-conditional Must Haves apply.
+- 2026-11-19, user: skip the migration QA on macOS; the user has no pre-cv-012 Mac VM they care about. The Linux run satisfies the migration Must Have.
 
 ## Notes
 - Sizing defaults are `CPUS`/`MEMORY` near the top of `claudevm`, passed only on first `up` (`cmd_up`). Host detection needs new fakes alongside `tests/fakes/uname` (for example `sysctl` on Darwin, and `nproc` plus `/proc/meminfo` or an override on Linux).
@@ -87,3 +88,5 @@ every VM, and gives the few existing VMs a one-off migration path.
 - **N2: Migration Must Have still open** (Must Have 8): the manual QA with `cv-012-migrate.sh`, once per host platform, is recorded with the host checks before `/ship`.
 
 Round 1's N3 cleanup, N5 and N6 are addressed; nothing else changed since round 1. `tools/check --no-vm` green (`limactl` not on `PATH`).
+
+Host checks at 2717865df3045911439d209335a18f413f7f7ce2: macOS green, Linux green
