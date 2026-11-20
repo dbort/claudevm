@@ -27,13 +27,22 @@ context, and kept current by Claude Code's own auto-updater.
 - Bare `claude` must resolve in interactive SSH, non-interactive `claudevm ssh <name> -- cmd`, and VS Code's integrated terminal. A user-local bin dir is on `PATH` only in login shells, and `limactl shell -- cmd` is not one.
 - A failed download warns and continues booting. The CLI is a convenience; a VM with no network on one boot is still usable, and install-if-missing retries next boot.
 - README tells owners of existing VMs to run the installer once inside the VM. Lima freezes provisioning at creation, and a manual install avoids the `rm`/recreate the migration section otherwise requires.
+- 2026-11-19, verified against the installer at /work: `install.sh` downloads the binary and runs `claude install`, which puts a symlink at `~/.local/bin/claude` pointing to `~/.local/share/claude/versions/<ver>`. An auto-update adds a new version file and repoints that symlink. It runs without a TTY and edits no shell rc file; it only prints a PATH hint. `claude doctor` run through a symlink in another `PATH` dir reports a native install with auto-updates enabled.
 
 ## Notes
 - Provisioning lives in `claude-sandbox.yaml` § `provision:`; existing steps show the system-vs-user mode split. The installer must run as the VM user so the auto-updater can write its own install dir without root.
 - For non-interactive `PATH`, a `/usr/local/bin/claude` symlink to the user-local launcher is one option; check it still points at the current version after an auto-update.
 - Integration tests: reuse `shared_instance` (`tests/conftest.py`) for the version and interactive-shell checks; `tests/test_up.py::test_down_then_up_resumes_real_instance` shows the down/up pattern for the reboot check.
 - cv-005 also edits `claude-sandbox.yaml` provisioning and `PATH` (its decision 8 documents Ubuntu's `/etc/profile` resetting `PATH` for interactive shells). Independent tasks, but whichever lands second rebases its provisioning step around the other.
+- 2026-11-19: the PATH Decision's premise that `limactl shell -- cmd` is not a login shell is wrong for Lima 2.x: `cmd/limactl/shell.go` runs `$SHELL -l -c cmd` (v2.0.3 `--login`, v2.3.0 `-l`), so Ubuntu's `~/.profile` puts `~/.local/bin` on `PATH` for `claudevm ssh` already. The `/usr/local/bin/claude` symlink is still needed for shells that skip `~/.profile`, such as VS Code's integrated terminal, and `test_real_instance_runs_claude_without_profile_path` covers it.
+- 2026-11-19: README's existing-VM instructions add a `sudo ln -sfn` line after the installer command, since an existing VM never gets the template's symlink step.
 
 ## Checklist
+- [x] Confirm the installer's install location, auto-update behavior and non-interactive run.
+- [x] `claude-sandbox.yaml`: header item 4; step 4 installs as the VM user only if missing, warning on failure; step 5 links `/usr/local/bin/claude`.
+- [x] Check step 4's failure path locally (unreachable URL: curl error, then warning, exit 0) and shellcheck steps 4 and 5.
+- [x] Integration tests: `tests/test_claude_cli.py` (version, no-profile PATH, interactive login shell); reboot check in `test_down_then_up_resumes_real_instance`.
+- [x] README: CLI in "How it works" and repo layout; installer command for existing VMs.
+- [x] `tools/check --no-vm` green (no `limactl` in this guest).
 
 ## Review log

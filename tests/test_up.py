@@ -125,6 +125,11 @@ def test_up_on_macos_skips_kvm_check(run_claudevm, limactl_state, tmp_path):
 @pytest.mark.timeout(600)
 def test_down_then_up_resumes_real_instance(run_real_claudevm, shared_instance):
     name, project_dir = shared_instance
+    # Provisioning reruns on every boot; the Claude Code CLI install must
+    # skip an existing install rather than download it again.
+    claude_stat = ["ssh", name, "--", "sh", "-c", 'stat -c "%n %Y" "$(readlink -f "$(command -v claude)")"']
+    before = run_real_claudevm(claude_stat, timeout=30)
+    assert before.returncode == 0, before.stderr
 
     down_result = run_real_claudevm(["down", name], timeout=120)
     assert down_result.returncode == 0, down_result.stderr
@@ -135,6 +140,10 @@ def test_down_then_up_resumes_real_instance(run_real_claudevm, shared_instance):
     ssh_result = run_real_claudevm(["ssh", name, "--", "echo", "resumed"], timeout=30)
     assert ssh_result.returncode == 0, ssh_result.stderr
     assert ssh_result.stdout == "resumed\n"
+
+    after = run_real_claudevm(claude_stat, timeout=30)
+    assert after.returncode == 0, after.stderr
+    assert after.stdout == before.stdout
 
 
 def _start_sizing(limactl_calls):
