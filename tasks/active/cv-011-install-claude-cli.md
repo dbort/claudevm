@@ -15,7 +15,7 @@ context, and kept current by Claude Code's own auto-updater.
 - [ ] A freshly created VM has a working `claude`: `claudevm ssh <name> -- claude --version` exits 0 (non-interactive, bare command name).
 - [ ] Bare `claude` also resolves in an interactive login shell in the VM (`bash -lic 'command -v claude'` via `claudevm ssh`).
 - [ ] A reboot (`claudevm down` then `up`) does not reinstall: the resolved `claude` binary's path and mtime are unchanged across the restart.
-- [ ] When the installer download fails, provisioning prints a warning naming the failure, the VM still finishes booting (`claudevm up` exits 0), and the next boot retries the install. Manual-QA case: no test can make the guest's download fail without new test machinery.
+- [ ] When the installer download fails, provisioning prints a warning naming the failure, the VM still finishes booting (`claudevm up` exits 0), and the next boot retries the install. `tests/test_claude_cli.py::test_real_instance_boots_after_failed_claude_download_then_retries` covers it.
 - [ ] `README.md` lists the Claude Code CLI among what the template installs, and gives the one-line installer command for VMs created before this change.
 - [ ] `claude-sandbox.yaml`'s header list of what the template adds includes the CLI.
 
@@ -28,6 +28,7 @@ context, and kept current by Claude Code's own auto-updater.
 - A failed download warns and continues booting. The CLI is a convenience; a VM with no network on one boot is still usable, and install-if-missing retries next boot.
 - README tells owners of existing VMs to run the installer once inside the VM. Lima freezes provisioning at creation, and a manual install avoids the `rm`/recreate the migration section otherwise requires.
 - 2026-11-19, verified against the installer at /work: `install.sh` downloads the binary and runs `claude install`, which puts a symlink at `~/.local/bin/claude` pointing to `~/.local/share/claude/versions/<ver>`. An auto-update adds a new version file and repoints that symlink. It runs without a TTY and edits no shell rc file; it only prints a PATH hint. `claude doctor` run through a symlink in another `PATH` dir reports a native install with auto-updates enabled.
+- 2026-11-19 (user): test the failed-download case as an integration test, not manual QA, even at the cost of two more VM restarts per full run. It blocks `claude.ai` and `downloads.claude.ai` in the guest's `/etc/hosts`, which Lima's boot leaves alone apart from its `host.lima.internal` line.
 
 ## Notes
 - Provisioning lives in `claude-sandbox.yaml` § `provision:`; existing steps show the system-vs-user mode split. The installer must run as the VM user so the auto-updater can write its own install dir without root.
@@ -43,6 +44,7 @@ context, and kept current by Claude Code's own auto-updater.
 - [x] Check step 4's failure path locally (unreachable URL: curl error, then warning, exit 0) and shellcheck steps 4 and 5.
 - [x] Integration tests: `tests/test_claude_cli.py` (version, no-profile PATH, interactive login shell); reboot check in `test_down_then_up_resumes_real_instance`.
 - [x] README: CLI in "How it works" and repo layout; installer command for existing VMs.
+- [x] Integration test for the failed-download case (fresh VM, blocked hosts, two restarts), replacing manual QA.
 - [x] `tools/check --no-vm` green (no `limactl` in this guest).
 
 ## Review log

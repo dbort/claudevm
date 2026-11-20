@@ -40,3 +40,36 @@ def test_real_instance_finds_claude_in_interactive_login_shell(run_real_claudevm
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip().endswith("/claude"), result.stdout
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(1800)
+def test_real_instance_boots_after_failed_claude_download_then_retries(run_real_claudevm, fresh_instance):
+    # A fresh VM, since this removes the CLI and a failure partway would
+    # leave the shared one without it.
+    name, project_dir = fresh_instance()
+
+    def ssh(script):
+        result = run_real_claudevm(["ssh", name, "--", "sh", "-c", script], timeout=60)
+        assert result.returncode == 0, result.stderr
+        return result.stdout
+
+    def restart():
+        for args in (["down", name], ["up", name]):
+            result = run_real_claudevm(args, timeout=600)
+            assert result.returncode == 0, result.stderr
+
+    # The installer fetches from both hosts. Lima rewrites only its own
+    # host.lima.internal line in /etc/hosts at boot, so the block persists.
+    ssh(
+        "rm ~/.local/bin/claude && sudo rm /usr/local/bin/claude"
+        " && echo '127.0.0.1 claude.ai downloads.claude.ai' | sudo tee -a /etc/hosts"
+    )
+    restart()
+    # Lima runs provisioning from cloud-init's per-boot hook, which appends
+    # each boot's output here; the first boot installed cleanly.
+    assert "Claude Code CLI install failed" in ssh("sudo cat /var/log/cloud-init-output.log")
+
+    ssh("sudo sed -i '/claude\\.ai/d' /etc/hosts")
+    restart()
+    assert "Claude Code" in ssh("/usr/local/bin/claude --version")
